@@ -1,0 +1,116 @@
+export enum UserRole {
+  ADMIN = 'ADMIN',
+  RECEPTIONIST = 'RECEPTIONIST',
+  DOCTOR = 'DOCTOR',
+  ASSISTANT = 'ASSISTANT',
+  ACCOUNTANT = 'ACCOUNTANT',
+  CHIEF_ACCOUNTANT = 'CHIEF_ACCOUNTANT',
+  INVENTORY_MANAGER = 'INVENTORY_MANAGER',
+}
+
+export enum VisitType {
+  NEW = 'NEW',
+  PAID_FOLLOW_UP = 'PAID_FOLLOW_UP',
+  ZERO_COST_FOLLOW_UP = 'ZERO_COST_FOLLOW_UP',
+  WARRANTY = 'WARRANTY',
+}
+
+export enum VisitStatus {
+  CANCELLED = 'CANCELLED',
+  NEW = 'NEW',
+  IN_PROGRESS = 'IN_PROGRESS',
+  WAITING_PROCESSING = 'WAITING_PROCESSING',
+  WAITING_PAYMENT = 'WAITING_PAYMENT',
+  COMPLETED = 'COMPLETED',
+}
+
+export enum ConsentStatus {
+  NOT_REQUIRED = 'NOT_REQUIRED',
+  PENDING_SIGNATURE = 'PENDING_SIGNATURE',
+  SIGNED = 'SIGNED',
+  REVOKED = 'REVOKED',
+}
+
+export enum CashShiftStatus {
+  OPEN = 'OPEN',
+  PENDING_CLOSE = 'PENDING_CLOSE',
+  CLOSED = 'CLOSED',
+  RECONCILED = 'RECONCILED',
+}
+
+export enum PaymentMethod {
+  CASH = 'CASH',
+  BANK_TRANSFER = 'BANK_TRANSFER',
+  DEPOSIT = 'DEPOSIT',
+  RECEIVABLE = 'RECEIVABLE',
+}
+
+export enum StockLotStatus {
+  AVAILABLE = 'AVAILABLE',
+  RESERVED = 'RESERVED',
+  CONSUMED = 'CONSUMED',
+  RELEASED = 'RELEASED',
+  EXPIRED = 'EXPIRED',
+}
+
+export enum ReservationStatus {
+  RESERVED = 'RESERVED',
+  CONSUMED = 'CONSUMED',
+  RELEASED = 'RELEASED',
+}
+
+export enum InsuranceClaimStatus {
+  DRAFT = 'DRAFT',
+  SUBMITTED = 'SUBMITTED',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+  SETTLED = 'SETTLED',
+}
+
+export enum DentalLabStatus {
+  SENT = 'SENT',
+  IN_PROGRESS = 'IN_PROGRESS',
+  RECEIVED = 'RECEIVED',
+  FITTED = 'FITTED',
+  REWORK_REQUESTED = 'REWORK_REQUESTED',
+  CANCELLED = 'CANCELLED',
+}
+
+export enum LabReworkResponsibility {
+  CLINIC_FAULT = 'CLINIC_FAULT',
+  LAB_FAULT = 'LAB_FAULT',
+  PATIENT_REQUEST = 'PATIENT_REQUEST',
+}
+
+export enum SterilizationStatus {
+  IN_PROGRESS = 'IN_PROGRESS',
+  PASSED = 'PASSED',
+  FAILED = 'FAILED',
+}
+
+export enum InstrumentPackStatus {
+  STERILE = 'STERILE',
+  USED = 'USED',
+  EXPIRED = 'EXPIRED',
+  DISCARDED = 'DISCARDED',
+}
+
+export enum VoucherStatus {
+  DRAFT = 'DRAFT',
+  PENDING_APPROVAL = 'PENDING_APPROVAL',
+  APPROVED = 'APPROVED',
+  POSTED = 'POSTED',
+  REJECTED = 'REJECTED',
+}
+
+export enum JournalStatus {
+  DRAFT = 'DRAFT',
+  POSTED = 'POSTED',
+  REVERSED = 'REVERSED',
+}
+
+export enum WarrantyStatus {
+  ACTIVE = 'ACTIVE',
+  EXPIRED = 'EXPIRED',
+  VOIDED = 'VOIDED',
+}
