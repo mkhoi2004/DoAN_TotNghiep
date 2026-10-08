@@ -28,19 +28,19 @@
 
 ### 0.1 Đối chiếu đặc tả với baseline triển khai
 
-Tài liệu này là đặc tả nghiệp vụ mục tiêu v13. Bảng dưới đây được cập nhật cùng mã nguồn để phân biệt rõ phần đã có kiểm thử tự động với phần còn nằm trong lộ trình triển khai; việc mô tả nghiệp vụ không được xem là bằng chứng module đã sẵn sàng production.
+Tài liệu này là đặc tả nghiệp vụ mục tiêu v13. Bảng dưới đây phản ánh đúng phạm vi mã nguồn hiện có; việc mô tả nghiệp vụ không được xem là bằng chứng module đã sẵn sàng production.
 
 | Phạm vi | Trạng thái baseline | Ràng buộc kiểm chứng |
 |:---|:---:|:---|
-| Xác thực JWT và RBAC | `IMPLEMENTED` | Guard quyền phải áp dụng tại controller; người tạo không tự duyệt chứng từ của mình |
-| Hồ sơ bệnh nhân và Lượt khám | `IMPLEMENTED` | Chống trùng SĐT/CCCD; mã định danh không sửa; state transition có test |
-| EMR, Consent Gatekeeper và Chốt dịch vụ | `IMPLEMENTED` | Thiếu Consent `SIGNED` phải chặn; `REVOKED` phải mở lại lượt khám đang xử lý; Settlement dùng idempotency |
-| Billing và Ca thu ngân | `IMPLEMENTED` | Không thu vượt phải thu; tiền mặt gắn ca `OPEN`; lệch két vượt ngưỡng chuyển `PENDING_CLOSE` |
-| Kho Lot/Serial, FIFO và Reserve/Consume/Release | `IN_PROGRESS` | Phải khóa đồng thời tồn khả dụng, tách lô theo FIFO và không xuất quá tồn |
-| Kế toán, định khoản và đối soát | `IN_PROGRESS` | Mọi bút toán phải tham chiếu giao dịch gốc, bảo toàn số tiền và tuân thủ SoD |
-| Tiệt trùng, Labo, Bảo hiểm, Bảo hành và Audit Log | `PLANNED` | Chỉ đánh dấu hoàn tất sau khi có API, giao diện và integration test tương ứng |
+| Xác thực JWT và RBAC | `IN_PROGRESS` | API có bcrypt, JWT ngắn hạn, giới hạn đăng nhập và guard vai trò; test account chỉ dùng local/dev; còn thiếu MFA, thu hồi phiên và integration test |
+| Hồ sơ bệnh nhân và Lượt khám | `IN_PROGRESS` | API có mã bệnh nhân/lượt khám, mã hóa CCCD, hash dò trùng CCCD và kiểm soát một phần chuyển trạng thái; còn thiếu UI, cảnh báo trùng SĐT và kiểm thử SQL |
+| EMR, Consent Gatekeeper và Chốt dịch vụ | `PLANNED` | Chưa mở chốt lâm sàng cho tới khi có EMR, chữ ký đồng thuận và kiểm thử gatekeeper |
+| Billing và Ca thu ngân | `IN_PROGRESS` | Có schema ca thu ngân/thanh toán; API thu tiền, giới hạn phải thu, đóng ca và đối soát chưa triển khai |
+| Kho Lot/Serial, FIFO và Reserve/Consume/Release | `IN_PROGRESS` | API có nhập lô, hạn dùng và xuất FIFO trong transaction; còn thiếu Reserve/Consume/Release, serial duy nhất và đối soát kế toán |
+| Kế toán, định khoản và đối soát | `IN_PROGRESS` | API có bút toán cân bằng và SoD duyệt; ma trận định khoản tự động, ghi sổ và báo cáo chưa triển khai |
+| Tiệt trùng, Labo, Bảo hiểm, Bảo hành và Audit Log | `PLANNED` | Audit log cơ bản đã có; các module nghiệp vụ còn lại chưa có API, giao diện và integration test |
 
-**Nguyên tắc cập nhật:** mỗi module chỉ được chuyển từ `IN_PROGRESS` sang `IMPLEMENTED` khi có schema, API, màn hình nghiệp vụ và test cho các nhánh lỗi chính; không dùng dữ liệu mẫu trên giao diện để thay thế dữ liệu production.
+**Nguyên tắc cập nhật:** mỗi module chỉ được chuyển từ `IN_PROGRESS` sang `IMPLEMENTED` khi có schema, API, màn hình nghiệp vụ và test cho các nhánh lỗi chính; không dùng dữ liệu mẫu trên giao diện để thay thế dữ liệu production. Baseline hiện tại chưa được chứng nhận sẵn sàng production.
 
 ---
 

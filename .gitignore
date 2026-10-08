@@ -1,0 +1,61 @@
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+secrets/
+
+# Dependencies and generated builds
+node_modules/
+dist/
+build/
+coverage/
+.vite/
+.next/
+.nuxt/
+out/
+*.tsbuildinfo
+
+# Logs, caches, and temporary files
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+.cache/
+.tmp/
+tmp/
+temp/
+
+# Local databases, backups, and large documents/media
+*.mdf
+*.ndf
+*.ldf
+*.db
+*.sqlite
+*.sqlite3
+*.bak
+*.dump
+*.zip
+*.7z
+*.rar
+*.tar
+*.gz
+*.pdf
+*.mp4
+*.mov
+*.avi
+*.psd
+*.ai
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json

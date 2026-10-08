@@ -1,0 +1,27 @@
+USE [DoAnTotNghiep];
+GO
+
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+SET ANSI_PADDING ON;
+SET ANSI_WARNINGS ON;
+SET CONCAT_NULL_YIELDS_NULL ON;
+SET ARITHABORT ON;
+SET NUMERIC_ROUNDABORT OFF;
+SET XACT_ABORT ON;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF EXISTS (SELECT 1 FROM dbo.Patients)
+BEGIN
+    THROW 51010, 'Encrypt existing patient notes before widening encrypted storage columns.', 1;
+END;
+
+ALTER TABLE dbo.Patients ALTER COLUMN AllergyNotes nvarchar(max) NULL;
+ALTER TABLE dbo.Patients ALTER COLUMN MedicalHistory nvarchar(max) NULL;
+GO
+
+COMMIT TRANSACTION;
+GO
