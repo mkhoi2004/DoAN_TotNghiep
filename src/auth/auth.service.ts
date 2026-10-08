@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../database/prisma.service';
@@ -22,5 +22,22 @@ export class AuthService {
       accessToken: await this.jwtService.signAsync(payload),
       user: { id: user.id, username: user.username, displayName: user.displayName, role: user.role },
     };
+  }
+
+  async getProfile(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        role: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!user) throw new NotFoundException('User profile not found');
+    return user;
   }
 }

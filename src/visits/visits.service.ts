@@ -25,7 +25,10 @@ export class VisitsService {
     if (!doctor) throw new NotFoundException('Doctor not found');
 
     const today = new Date().toISOString().slice(0, 10).replaceAll('-', '');
-    const count = await this.prisma.visit.count({ where: { createdAt: { gte: new Date(`${today.slice(0, 4)}-${today.slice(4, 6)}-${today.slice(6)}T00:00:00.000Z`) } } });
+    const count = await this.prisma.visit.count({
+      where: { createdAt: { gte: new Date(`${today.slice(0, 4)}-${today.slice(4, 6)}-${today.slice(6)}T00:00:00.000Z`) } },
+    });
+
     return this.prisma.visit.create({
       data: {
         visitCode: `STN#${today}#/${String(count + 1).padStart(4, '0')}`,
@@ -35,6 +38,27 @@ export class VisitsService {
         grossCharge: dto.grossCharge,
       },
     });
+  }
+
+  findAll() {
+    return this.prisma.visit.findMany({
+      include: { patient: true, doctor: true, emr: true, payments: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async findOne(id: string) {
+    const visit = await this.prisma.visit.findUnique({
+      where: { id },
+      include: {
+        patient: true,
+        doctor: true,
+        emr: { include: { treatmentLines: true, consents: true, settlement: true } },
+        payments: true,
+      },
+    });
+    if (!visit) throw new NotFoundException(`Visit with ID ${id} not found`);
+    return visit;
   }
 
   async transition(id: string, nextStatus: keyof typeof transitions) {
@@ -47,5 +71,30 @@ export class VisitsService {
       return this.prisma.visit.update({ where: { id }, data: { status: 'COMPLETED' } });
     }
     return this.prisma.visit.update({ where: { id }, data: { status: nextStatus } });
+  }
+
+  async remove(id: string, deletedById: string, reason: string) {
+    const visit = await this.findOne(id);
+    const archiveCode = `DEL_STN#${new Date().toISOString().slice(0, 10).replaceAll('-', '')}#${visit.id.slice(0, 6)}`;
+
+    return this.prisma.$transaction(async (transaction) => {
+      await transaction.visitDeleted.create({
+        data: {
+          archiveCode,
+          originalVisitId: visit.id,
+          visitCode: visit.visitCode,
+          patientId: visit.patientId,
+          doctorId: visit.doctorId,
+          visitType: visit.type,
+          visitStatus: visit.status,
+          grossCharge: visit.grossCharge,
+          originalCreatedAt: visit.createdAt,
+          deletedById,
+          reason,
+        },
+      });
+
+      return transaction.visit.delete({ where: { id } });
+    });
   }
 }
