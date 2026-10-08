@@ -1,25 +1,32 @@
 import 'reflect-metadata';
-import { createServer } from 'node:net';
+import { createServer as createNetServer } from 'node:net';
 import { join } from 'node:path';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 
-function checkPortFree(port: number): Promise<boolean> {
+function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
-    const server = createServer();
-    server.once('error', () => resolve(false));
-    server.once('listening', () => {
-      server.close(() => resolve(true));
+    const s4 = createNetServer();
+    s4.once('error', () => resolve(false));
+    s4.once('listening', () => {
+      s4.close(() => {
+        const s6 = createNetServer();
+        s6.once('error', () => resolve(false));
+        s6.once('listening', () => {
+          s6.close(() => resolve(true));
+        });
+        s6.listen(port, '::');
+      });
     });
-    server.listen(port, '::');
+    s4.listen(port, '0.0.0.0');
   });
 }
 
-async function getNextAvailablePort(startPort: number): Promise<number> {
+async function getAvailablePort(startPort: number): Promise<number> {
   let port = startPort;
-  while (!(await checkPortFree(port))) {
+  while (!(await isPortAvailable(port))) {
     port++;
   }
   return port;
@@ -50,11 +57,11 @@ async function bootstrap(): Promise<void> {
     }),
   );
 
-  const desiredPort = Number(process.env.PORT) || 3000;
-  const port = await getNextAvailablePort(desiredPort);
+  const targetPort = Number(process.env.PORT) || 3000;
+  const port = await getAvailablePort(targetPort);
 
-  if (port !== desiredPort) {
-    console.warn(`⚠️ Port ${desiredPort} is currently occupied. Automatically listening on port ${port}.`);
+  if (port !== targetPort) {
+    console.warn(`⚠️ Port ${targetPort} is currently in use. System auto-switched to port ${port}.`);
   }
 
   await app.listen(port);
