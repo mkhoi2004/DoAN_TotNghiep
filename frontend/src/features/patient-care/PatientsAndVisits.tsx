@@ -1,6 +1,7 @@
 import { ArrowRight, ChevronLeft, ChevronRight, Clock3, CreditCard, Plus, Search, Settings2, Stethoscope, Users, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { api, shortDate, type CurrentUser, type Patient, type Visit } from "../../api";
+import { api, ApiError, shortDate, type CurrentUser, type Patient, type Visit } from "../../api";
+import { canAccessSection } from "../../shared/constants";
 import { VisitStatus, MiniStat, Modal, EmptyRow, FieldError } from "../../shared/components";
 
 export function PatientsAndVisits({ section, user, onNotice, onOpenEmr }: { section: "reception" | "patients"; user: CurrentUser; onNotice: (message: string, type?: "success" | "error") => void; onOpenEmr: (visitId: string) => void }) {
@@ -12,6 +13,7 @@ export function PatientsAndVisits({ section, user, onNotice, onOpenEmr }: { sect
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ fullName: "", dateOfBirth: "", gender: "Nữ", phone: "", nationalId: "", address: "", allergyNotes: "", medicalHistory: "", doctorId: "", visitType: "NEW", chiefComplaint: "" });
   const [error, setError] = useState("");
+  const [duplicateMatches, setDuplicateMatches] = useState<Array<{ PatientId: string; PatientCode: string; FullName: string; DateOfBirth: string; Phone: string; Address: string }> | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -47,6 +49,13 @@ export function PatientsAndVisits({ section, user, onNotice, onOpenEmr }: { sect
     return `${visit.PatientName} ${visit.PatientCode} ${visit.VisitCode}`.toLocaleLowerCase("vi").includes(normalized);
   }), [query, visits]);
 
+  function openExistingPatient(patientId: string) {
+    window.sessionStorage.setItem("activePatientId", patientId);
+    setDuplicateMatches(null);
+    setIsOpen(false);
+    onNotice("Đã mở hồ sơ bệnh nhân hiện có.");
+  }
+
   async function create(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
@@ -75,12 +84,19 @@ export function PatientsAndVisits({ section, user, onNotice, onOpenEmr }: { sect
         })
       });
       setIsOpen(false);
+      setDuplicateMatches(null);
       setForm({ fullName: "", dateOfBirth: "", gender: "Nữ", phone: "", nationalId: "", address: "", allergyNotes: "", medicalHistory: "", doctorId: "", visitType: "NEW", chiefComplaint: "" });
       await load();
       onNotice("Đã tạo lượt tiếp nhận thành công.");
       if (section === "reception") onOpenEmr(visit.VisitId);
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "Không thể tạo lượt tiếp nhận.";
+      if (cause instanceof ApiError && cause.code === "PATIENT_DUPLICATE_MATCH" && Array.isArray(cause.matches)) {
+        setDuplicateMatches(cause.matches as Array<{ PatientId: string; PatientCode: string; FullName: string; DateOfBirth: string; Phone: string; Address: string }>);
+        setIsOpen(false);
+        setError("");
+        return;
+      }
       setError(message);
       if (message.includes("already exists") || message.includes("đã tồn tại")) {
         await load();
@@ -101,6 +117,7 @@ export function PatientsAndVisits({ section, user, onNotice, onOpenEmr }: { sect
   }
 
   const canCreate = user.role === "ADMIN" || user.role === "RECEPTIONIST";
+  const canOpenEmr = canAccessSection(user.role, "emr");
   return (
     <div className="module-content">
       <div className="stats-strip">
@@ -113,7 +130,7 @@ export function PatientsAndVisits({ section, user, onNotice, onOpenEmr }: { sect
         <div className="table-toolbar"><div className="filter-tabs"><button className="filter-active" onClick={() => setQuery("")}>Tất cả <span>{section === "patients" ? patients.length : visits.length}</span></button><button onClick={() => setQuery("")}>Hôm nay</button>{section === "reception" && <button onClick={() => setQuery("")}>Đang chờ</button>}</div><div className="table-tools"><label className="search-box"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm tên, mã bệnh nhân..." /><kbd>⌘ K</kbd></label><button className="icon-button filter-button" onClick={() => onNotice("Danh sách đang được lọc theo dữ liệu hiện có.")} aria-label="Lọc"><Settings2 size={17} /></button>{canCreate && <button className="primary-button compact-action" onClick={() => setIsOpen(true)}><Plus size={16} />Tiếp nhận mới</button>}</div></div>
         <div className="table-scroll"><table className="data-table"><thead><tr>{section === "patients" ? <><th>BỆNH NHÂN</th><th>NGÀY SINH</th><th>LIÊN HỆ</th><th>HỒ SƠ</th><th></th></> : <><th>BỆNH NHÂN</th><th>SỐ TIẾP NHẬN</th><th>LOẠI KHÁM</th><th>BÁC SĨ</th><th>GIỜ TIẾP NHẬN</th><th>TRẠNG THÁI</th><th></th></>}</tr></thead><tbody>
           {section === "patients" ? patients.map((patient) => <tr key={patient.PatientId}><td><div className="patient-cell"><span className="patient-avatar">{patient.FullName.slice(0, 1)}</span><span><strong>{patient.FullName}</strong><small>{patient.PatientCode} · {patient.Gender}</small></span></div></td><td>{shortDate(patient.DateOfBirth)}</td><td><strong>{patient.Phone}</strong><small className="cell-subtext">{patient.Address}</small></td><td><span className={`allergy-pill ${patient.AllergyNotes ? "allergy-warning" : ""}`}>{patient.AllergyNotes ? "Dị ứng cần lưu ý" : "Đã xác minh"}</span></td><td><button className="row-action" onClick={() => { window.sessionStorage.setItem("activePatientId", patient.PatientId); onNotice("Đã mở hồ sơ bệnh nhân."); }}><ArrowRight size={15} /></button></td></tr>)
-            : filteredVisits.filter((visit) => visit.Status !== -1).map((visit) => <tr key={visit.VisitId}><td><div className="patient-cell"><span className="patient-avatar">{visit.PatientName.slice(0, 1)}</span><span><strong>{visit.PatientName}</strong><small>{visit.PatientCode}</small></span></div></td><td><span className="code-text">{visit.VisitCode}</span></td><td>{visit.VisitType === "NEW" ? "Khám mới" : visit.VisitType === "FOLLOW_UP_FREE" ? "Tái khám theo phác đồ" : "Tái khám có phí"}</td><td>{visit.DoctorUsername}</td><td>{new Date(visit.CreatedAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</td><td><VisitStatus status={visit.Status} /></td><td><div className="row-actions"><button className="row-action" title="Mở bệnh án" onClick={() => onOpenEmr(visit.VisitId)}><ArrowRight size={15} /></button>{canCreate && [0,1].includes(visit.Status) && <button className="row-action row-danger" title="Hủy lượt khám" onClick={() => void cancelVisit(visit.VisitId)}><X size={15} /></button>}</div></td></tr>)}
+            : filteredVisits.filter((visit) => visit.Status !== -1).map((visit) => <tr key={visit.VisitId}><td><div className="patient-cell"><span className="patient-avatar">{visit.PatientName.slice(0, 1)}</span><span><strong>{visit.PatientName}</strong><small>{visit.PatientCode}</small></span></div></td><td><span className="code-text">{visit.VisitCode}</span></td><td>{visit.VisitType === "NEW" ? "Khám mới" : visit.VisitType === "FOLLOW_UP_FREE" ? "Tái khám theo phác đồ" : "Tái khám có phí"}</td><td>{visit.DoctorUsername}</td><td>{new Date(visit.CreatedAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</td><td><VisitStatus status={visit.Status} /></td><td><div className="row-actions">{canOpenEmr && (user.role !== "DOCTOR" || visit.DoctorUsername === user.username) && <button className="row-action" title="Mở bệnh án" onClick={() => onOpenEmr(visit.VisitId)}><ArrowRight size={15} /></button>}{canCreate && [0,1].includes(visit.Status) && <button className="row-action row-danger" title="Hủy lượt khám" onClick={() => void cancelVisit(visit.VisitId)}><X size={15} /></button>}</div></td></tr>)}
           {section === "patients" && patients.length === 0 && <EmptyRow colSpan={5} title="Chưa có hồ sơ bệnh nhân" body="Tạo hồ sơ mới tại quầy tiếp nhận." />}
           {section === "reception" && filteredVisits.length === 0 && <EmptyRow colSpan={7} title="Chưa có lượt khám" body="Tạo lượt khám mới để bắt đầu tiếp nhận." />}
         </tbody></table></div>
@@ -136,6 +153,26 @@ export function PatientsAndVisits({ section, user, onNotice, onOpenEmr }: { sect
           <div className="span-2"><FieldError text={error} /></div>
           <div className="modal-actions span-2"><button type="button" className="secondary-button" onClick={() => setIsOpen(false)}>Hủy</button><button className="primary-button" disabled={busy}>{busy ? "Đang lưu..." : "Lưu & tạo lượt khám"}<ArrowRight size={16} /></button></div>
         </form>
+      </Modal>}
+      {duplicateMatches && duplicateMatches.length > 0 && <Modal title="Cảnh báo hồ sơ trùng" subtitle="Đã tìm thấy bệnh nhân có thông tin tương đồng; vui lòng kiểm tra trước khi tạo mới." onClose={() => setDuplicateMatches(null)}>
+        <div className="duplicate-list">
+          {duplicateMatches.map((patient) => (
+            <div className="duplicate-match-card" key={patient.PatientId}>
+              <div>
+                <strong>{patient.FullName}</strong>
+                <small>{patient.PatientCode} · {shortDate(patient.DateOfBirth)}</small>
+              </div>
+              <div className="duplicate-match-meta">
+                <span>{patient.Phone}</span>
+                <span>{patient.Address}</span>
+              </div>
+              <button type="button" className="primary-button compact-action" onClick={() => openExistingPatient(patient.PatientId)}>Mở hồ sơ cũ</button>
+            </div>
+          ))}
+          <div className="modal-actions">
+            <button type="button" className="secondary-button" onClick={() => setDuplicateMatches(null)}>Đóng</button>
+          </div>
+        </div>
       </Modal>}
     </div>
   );

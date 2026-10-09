@@ -1,388 +1,173 @@
-# Update.md — Nhật ký chức năng & tiến độ
+# DentalCare ERP — chức năng hiện có
 
-Tài liệu này mô tả **phần mềm đang làm gì**, **đã làm xong những gì**, và **còn thiếu gì** so với đặc tả `Quy_trinh_v13_NhaKhoa.md`. Dùng file này khi tiếp tục phát triển: đánh dấu trạng thái, ghi changelog, tránh làm lại hoặc quên ràng buộc.
+**Cập nhật:** 09/10/2026
+**Phạm vi tài liệu:** chức năng đang được triển khai trong mã nguồn hiện tại; đây không phải danh sách yêu cầu tương lai hay tuyên bố hệ thống đã sẵn sàng production.
 
-> Ngày rà soát mã nguồn: **09/10/2026**  
-> Tên hiển thị UI: **DentalCare ERP**  
-> Đặc tả mục tiêu: **v13 – Quản lý phòng khám nha khoa tích hợp ERP và bảo mật EMR**  
-> Mức độ hiện tại: **baseline MVP mở rộng, chưa production-ready**
+## 1. Hệ thống
 
-Cách đọc trạng thái:
+DentalCare ERP là ứng dụng quản lý phòng khám nha khoa gồm giao diện React/Vite, API Node.js/Express và cơ sở dữ liệu SQL Server.
 
-| Ký hiệu | Ý nghĩa |
-|:---|:---|
-| **DONE** | Có schema + API + màn hình chính; dùng được trên luồng happy-path |
-| **PARTIAL** | Có nền tảng (schema/API/UI) nhưng thiếu vòng đời đầy đủ, tích hợp hoặc test |
-| **PLANNED** | Có trong v13, chưa triển khai hoặc chỉ ghi chú UI |
+| Thành phần | Hiện trạng |
+| --- | --- |
+| Frontend | React 19, TypeScript, Vite; chạy mặc định tại `http://127.0.0.1:5173` |
+| Backend | Node.js, Express 5, TypeScript; cổng mặc định `3000` |
+| Database | SQL Server; migration tại `backend/sql/001` đến `004` |
+| API health | `GET /health` |
+| Đăng nhập | JWT Bearer; đăng nhập giới hạn 50 lần trong 15 phút |
+| Mã hóa dữ liệu nhạy cảm | AES-256-GCM cho dữ liệu được bảo vệ; HMAC lookup hash cho so khớp CCCD |
+| Lưu vết/xóa | Audit log cho các thao tác nghiệp vụ được tích hợp; cơ chế soft-delete và bảng lưu bản ghi xóa được tạo trong migration |
 
----
+## 2. Vai trò và màn hình
 
-## 1. Phần mềm này làm gì?
+Backend chấp nhận bảy vai trò. Sidebar và lối tắt dashboard được lọc theo role; API cũng xác thực JWT và kiểm tra quyền trên từng route.
 
-Hệ thống quản trị **phòng khám nha khoa**: đón tiếp bệnh nhân → ghi bệnh án điện tử (EMR) → chốt dịch vụ (có cổng đồng thuận xâm lấn) → thu tiền / đóng ca quỹ → quản lý kho FIFO → các module vận hành (tiệt trùng, Labo, bảo hiểm, bảo hành, kế toán, nhân sự, tài sản).
+| Vai trò | Màn hình được cấp trên UI |
+| --- | --- |
+| `ADMIN` | Tổng quan, Tiếp nhận, Hồ sơ bệnh nhân, EMR, Thu ngân, Kho, Vô khuẩn, Labo, Bảo hiểm, Bảo hành, Kế toán, Nhân sự, Tài sản |
+| `RECEPTIONIST` | Tổng quan, Tiếp nhận, Hồ sơ bệnh nhân, Thu ngân, Kho (xem), Bảo hiểm, Bảo hành |
+| `DOCTOR` | Tổng quan, Tiếp nhận, Hồ sơ bệnh nhân, EMR, Kho, Labo, Bảo hành |
+| `ASSISTANT` | Tổng quan, Tiếp nhận, Hồ sơ bệnh nhân, EMR, Kho, Vô khuẩn, Labo |
+| `ACCOUNTANT` | Tổng quan, Thu ngân, Kho, Bảo hiểm, Kế toán, Nhân sự, Tài sản |
+| `CHIEF_ACCOUNTANT` | Tổng quan, Thu ngân, Kho, Bảo hiểm, Kế toán |
+| `INVENTORY_MANAGER` | Tổng quan, Kho, Vô khuẩn, Tài sản |
 
-**Phạm vi Lean MVP (theo v13):** không làm đặt lịch hẹn phức tạp, không CSKH đa kênh, không mua hàng PO nhiều cấp. Giữ tồn kho + nhập/xuất trực tiếp.
+Quyền ghi chính:
 
-**Không phải:** EMR pháp lý đầy đủ, ERP kế toán tự động hoàn chỉnh, hay hệ thống sẵn sàng production.
+- `ADMIN` và `RECEPTIONIST`: tạo hồ sơ bệnh nhân/lượt khám; `ADMIN` và `INVENTORY_MANAGER`: quản lý danh mục kho, nhận hàng.
+- `DOCTOR` và `ADMIN`: sửa EMR, chỉ định dịch vụ và chốt chuyên môn. Bác sĩ bị giới hạn theo lượt khám được phân công ở các nghiệp vụ tương ứng.
+- `RECEPTIONIST` và `ADMIN`: mở ca và thu tiền; `ADMIN` hoặc `CHIEF_ACCOUNTANT` khác người thực hiện mới được đối soát ca.
+- `ACCOUNTANT`: lập bút toán; `CHIEF_ACCOUNTANT`: duyệt bút toán của người khác. `ADMIN` chỉ xem danh sách bút toán.
+- `ASSISTANT` được tạo chu trình tiệt trùng và phiếu Labo nhưng không được sửa EMR.
 
----
+## 3. Chức năng theo nghiệp vụ
 
-## 2. Kiến trúc & cách chạy
+### Đăng nhập, người dùng và dashboard
 
+- Đăng nhập kiểm tra mật khẩu bằng bcrypt, phát JWT; API yêu cầu JWT ngoại trừ `/health` và đăng nhập.
+- `ADMIN` có thể tạo người dùng với một trong bảy role; mật khẩu phải dài 9–200 ký tự, có chữ hoa và ký tự đặc biệt.
+- Dashboard tải dữ liệu lượt khám, bệnh nhân và tồn kho theo quyền của role; hiển thị chỉ số, lượt gần đây và lối tắt được phép.
+
+### Hồ sơ bệnh nhân và tiếp nhận
+
+- Tra cứu danh sách bệnh nhân và tìm theo thông tin hỗ trợ; tạo hồ sơ với thông tin liên hệ, định danh, dị ứng và tiền sử.
+- Phát hiện trùng theo số điện thoại hoặc định danh; API trả kết quả trùng để giao diện cảnh báo.
+- Thông tin định danh và ghi chú nhạy cảm được bảo vệ khi lưu; hỗ trợ xóa mềm bệnh nhân kèm lý do.
+- Tạo lượt khám gắn bệnh nhân với bác sĩ đang hoạt động; mã lượt khám được sinh theo ngày.
+- Trạng thái lượt khám được quản lý theo các bước `0` chờ, `1` đang khám, `2` đã chốt chuyên môn, `3` chờ thanh toán, `4` hoàn tất; `-1` là đã hủy. API giới hạn chuyển trạng thái và vai trò được phép thực hiện.
+- Giao diện hỗ trợ danh sách, tìm kiếm, tạo hồ sơ/lượt khám và thao tác hủy lượt theo quyền.
+
+### Bệnh án điện tử (EMR) và đồng thuận
+
+- Chọn lượt khám; xem và lưu sinh hiệu, chẩn đoán, diễn biến lâm sàng và sơ đồ răng FDI.
+- Tra cứu danh mục dịch vụ, thêm dịch vụ vào lượt khám; giá được ghi nhận cùng dòng chỉ định.
+- Ghi nhận đồng thuận điện tử cho dịch vụ xâm lấn, gồm chữ ký trên giao diện và người làm chứng; API hỗ trợ thu hồi đồng thuận kèm lý do.
+- Chốt chuyên môn kiểm tra EMR đã lưu và đồng thuận cho các dịch vụ xâm lấn; lượt khám miễn phí không được chốt kèm dịch vụ tính phí.
+- Nội dung EMR chuyển sang chỉ đọc sau khi chốt; có thao tác hủy chốt/mở sửa trước bước thanh toán theo quy tắc chuyển trạng thái.
+
+### Thu ngân và ca quỹ
+
+- Xem lượt chờ thanh toán, ca hiện tại, lịch sử giao dịch và ca chờ đối soát.
+- Mở ca với tiền đầu ca; ghi nhận thanh toán bằng tiền mặt, chuyển khoản hoặc thẻ.
+- Tiền mặt cần gắn ca đang mở; giao dịch có idempotency key, không thu vượt số dư phải trả. Thu đủ tiền hoàn tất lượt khám.
+- Đóng ca ghi nhận tiền kiểm đếm và chênh lệch, chuyển sang chờ đối soát; người đối soát phải khác người mở ca.
+
+### Kho vật tư
+
+- Xem mặt hàng, kho, lô hàng, tồn khả dụng, hàng cận hạn và cảnh báo tồn thấp.
+- Tạo mặt hàng/kho; nhập hàng theo lô, hạn dùng, số lượng, đơn giá và serial tùy chọn.
+- Xuất kho phân bổ FIFO theo thứ tự nhận lô, loại lô hết hạn và kiểm tra tồn khả dụng; giao dịch kho được ghi nhận.
+- Dự trữ vật tư cho lượt khám; hỗ trợ tiêu thụ hoặc giải phóng dự trữ. Giải phóng yêu cầu lý do; dự trữ hết hạn được xử lý khi tiêu thụ.
+
+### Vô khuẩn
+
+- Tra cứu và ghi nhận chu trình hấp gồm thiết bị, nhiệt độ, áp suất, thời lượng và kết quả chỉ thị `PENDING`, `PASSED` hoặc `FAILED`.
+- Chu trình đạt tạo thời hạn vô trùng 30 ngày. Màn hình hiển thị thông tin trạng thái chu trình.
+
+### Labo
+
+- Tra cứu và tạo phiếu Labo gắn với lượt khám, xưởng, mô tả sản phẩm, ngày hẹn và chi phí ước tính; mã phiếu được sinh tự động.
+- Màn hình tổng hợp số phiếu và trạng thái hiện có. API cung cấp danh sách/tạo phiếu.
+
+### Bảo hiểm
+
+- Tra cứu và tạo hồ sơ yêu cầu bảo hiểm thương mại hoặc BHYT, gắn với lượt khám đã chốt có phát sinh phí.
+- Lưu đơn vị chi trả, số tiền yêu cầu và trạng thái ban đầu của hồ sơ.
+
+### Bảo hành
+
+- Tra cứu và cấp thẻ bảo hành dịch vụ gắn lượt khám hoàn tất; lưu tên dịch vụ và thời hạn hiệu lực theo tháng.
+
+### Kế toán
+
+- Tra cứu danh sách bút toán.
+- Kế toán viên tạo bút toán nháp từ các dòng định khoản; yêu cầu tối thiểu hai dòng, số tiền hợp lệ một bên Nợ/Có và tổng Nợ bằng tổng Có.
+- Kế toán trưởng duyệt bút toán do người khác lập; ràng buộc phân nhiệm được kiểm tra ở API và cơ sở dữ liệu.
+- Migration cung cấp danh mục tài khoản kế toán, bao gồm các tài khoản bổ sung theo TT 99/2025/TT-BTC.
+
+### Nhân sự và tài sản
+
+- Nhân sự: tra cứu và thêm hồ sơ gồm họ tên, chức danh, số chứng chỉ hành nghề và điện thoại; trường điện thoại được bảo vệ khi lưu.
+- Tài sản: tra cứu và ghi tăng tài sản theo nhóm thiết bị, số serial, ngày ghi tăng, nguyên giá và thời gian sử dụng.
+
+### Bảo mật, audit và dữ liệu
+
+- Middleware kiểm tra JWT, role và quyền theo route; request nghiệp vụ được kiểm tra dữ liệu đầu vào.
+- Ghi nhận audit cho đăng nhập và các thao tác được tích hợp như đọc/tạo hồ sơ, EMR/đồng thuận, thanh toán, kho và module vận hành.
+- Migration `001` tạo schema nền cho user, bệnh nhân, lượt khám, kho, kế toán, ca quỹ, thanh toán và audit; `002` hỗ trợ lưu ghi chú bệnh nhân đã bảo vệ; `003` bổ sung EMR, đồng thuận và các module lâm sàng/vận hành; `004` bổ sung danh mục tài khoản.
+
+## 4. API hiện có
+
+Các API nghiệp vụ nằm dưới `/api`; mọi route được bảo vệ bằng JWT và/hoặc kiểm tra role theo cấu hình route.
+
+| Nhóm | Route hiện có |
+| --- | --- |
+| Auth | `POST /api/auth/login`, `POST /api/auth/users` |
+| Bệnh nhân/lượt khám | `GET/POST /api/patients`, `DELETE /api/patients/:patientId`, `GET/POST /api/visits`, `PATCH /api/visits/:visitId/status`, `GET /api/staff/doctors` |
+| Dịch vụ/EMR/đồng thuận | `GET/POST /api/clinical/services`, `GET/PUT /api/clinical/visits/:visitId/emr`, `POST /api/clinical/visits/:visitId/services`, `POST /api/clinical/consents`, `POST /api/clinical/consents/:consentId/revoke`, `POST /api/clinical/visits/:visitId/settle` |
+| Thu ngân | `GET /api/cashier/shifts/current`, `GET /api/cashier/shifts/pending`, `GET /api/cashier/payments`, `POST /api/cashier/shifts/open`, `POST /api/cashier/shifts/close`, `POST /api/cashier/shifts/:id/reconcile`, `POST /api/visits/:visitId/payments` |
+| Kho/dự trữ | `GET/POST /api/inventory/products`, `GET/POST /api/inventory/warehouses`, `GET /api/inventory`, `POST /api/inventory/receipts`, `POST /api/inventory/issues`, `GET /api/inventory/reservation-visits`, `GET/POST /api/inventory/reservations`, `POST /api/inventory/reservations/:id/consume`, `POST /api/inventory/reservations/:id/release` |
+| Vận hành | `GET/POST /api/sterilization/cycles`, `/api/operations/labo`, `/api/insurance/claims`, `/api/warranties`, `/api/hr/employees`, `/api/assets` |
+| Kế toán | `GET/POST /api/accounting/journals`, `POST /api/accounting/journals/:id/approve` |
+
+## 5. Phạm vi API ở các module vận hành
+
+Phần này mô tả đúng hành động hiện được cung cấp, không suy diễn rằng trường trạng thái trong database đã có vòng đời thao tác tương ứng:
+
+- Chu trình vô khuẩn, phiếu Labo, hồ sơ bảo hiểm, thẻ bảo hành, nhân sự và tài sản: API danh sách/tạo (`GET`/`POST`).
+- Bút toán: danh sách, tạo và duyệt; giao diện nhập các dòng định khoản ở dạng JSON.
+- Bệnh nhân: danh sách, tạo và xóa mềm; chưa có API cập nhật hồ sơ.
+- Danh mục sản phẩm/kho: danh sách và tạo; luồng kho có nhập, xuất và quản lý dự trữ.
+- Các bảng trạng thái của Labo/bảo hiểm/bảo hành không tự tạo thành luồng chuyển trạng thái; các API cập nhật/chuyển trạng thái tương ứng chưa được cung cấp.
+- UI kho/vô khuẩn chưa có luồng tem QR khay và quét tại ghế; các chức năng kho hiện tại áp dụng FIFO theo lô hàng, không ghi nhận quy trình quét dụng cụ tại ghế.
+
+## 6. Kiểm thử và xác minh ngày 09/10/2026
+
+### Tự động
+
+- Backend: `npm test` — **3 file, 15 test đạt**; gồm chính sách mật khẩu, bảo vệ PII, bất biến chuyển trạng thái lượt khám, đối soát ca, phân bổ FIFO và cân bút toán.
+- Frontend: `npm test` — **1 file, 4 test đạt**; kiểm tra ma trận quyền menu/tạo theo role.
+- `npm run build` backend: **đạt**.
+- `npm run build` frontend: **đạt**.
+
+### Kiểm tra trực tiếp trên ứng dụng
+
+- API `GET /health` và proxy `/health` qua Vite trả trạng thái `ok`.
+- Đăng nhập trực tiếp thành công với cả 7 tài khoản demo đã ghi trong `README.md`.
+- Mở Dashboard và tất cả menu được cấp cho từng role: **50 lượt mở màn hình**, không thấy lỗi API `4xx`/`5xx` hoặc lỗi runtime JavaScript.
+- Kiểm tra quyền tạo trên **36 tổ hợp role/màn hình**: nút xuất hiện đúng ma trận quyền; mở form thành công ở mọi trường hợp được phép.
+- Không gửi form tạo, không thu tiền, không thay đổi trạng thái nghiệp vụ và không xóa dữ liệu trong lượt kiểm tra này. Vì vậy các thao tác ghi và toàn bộ vòng đời tích hợp chưa được xác nhận bằng kiểm thử end-to-end trên dữ liệu mới.
+- Khi mở màn hình Thu ngân, trạng thái rỗng của hàng chờ thanh toán hiển thị bình thường; không còn cảnh báo DOM/hydration đã thấy trước đó.
+
+### Lệnh chạy kiểm tra
+
+Chạy từ từng thư mục ứng dụng:
+
+```powershell
+# Backend
+npm test
+npm run build
+
+# Frontend
+npm test
+npm run build
 ```
-frontend/     React 19 + Vite 6  →  http://127.0.0.1:5173  (proxy /api → :3000)
-backend/      Node.js/Express 5 + TypeScript + SQL Server
-backend/sql/  Migration 001 → 004
-```
-
-| Thành phần | Chi tiết |
-|:---|:---|
-| API | `backend/src/index.ts`, cổng mặc định `3000` |
-| Health | `GET /health` |
-| Auth | JWT Bearer, hết hạn mặc định 900 giây |
-| CSDL | SQL Server (Windows Integrated Auth, ODBC Driver 18) |
-| Bảo mật PII | AES-256-GCM + HMAC lookup hash (CCCD, ghi chú dị ứng/bệnh sử, chữ ký consent, SĐT nhân sự) |
-| Xóa dữ liệu | Soft-delete: mỗi bảng có bảng `*Deleted` + trigger `INSTEAD OF DELETE`; không `ON DELETE CASCADE` |
-| UI | SPA một file `frontend/src/App.tsx`, điều hướng theo vai trò |
-
-Chạy local (rút gọn từ `backend/README.md`):
-
-1. `backend`: copy `.env.example` → `.env` (JWT + 2 khóa PII).
-2. `sqlcmd` lần lượt: `001` → `002` → bootstrap admin → `003` → `004`.
-3. Optional: `npm run seed-test-users`.
-4. `npm run dev` (API) và `frontend`: `npm run dev`.
-
-Script SQL:
-
-| File | Việc |
-|:---|:---|
-| `001_initial_schema.sql` | Users, Patients, Visits, kho, kế toán, ca quỹ, audit, bảng Deleted |
-| `002_encrypt_patient_notes.sql` | Mã hóa ghi chú bệnh nhân (chỉ khi chưa có dòng bệnh nhân) |
-| `003_clinical_and_erp_modules.sql` | EMR, consent, dịch vụ, reservation, tiệt trùng, Labo, BH, bảo hành, HR, TSCĐ |
-| `004_tt99_accounting_accounts.sql` | Bổ sung TK 1331/1332, 211/2141, 3331, 521, 621/622/627, 711 |
-
-Test hiện có (chỉ backend unit): `pii`, `password-policy`, `invariants` (FIFO, journal cân, chuyển trạng thái lượt khám, đóng ca). **Chưa có integration test API/UI.**
-
----
-
-## 3. Vai trò (RBAC)
-
-Đã khai báo trong JWT / `allowRoles`:
-
-| Role | Tên UI | Menu thấy được (rút gọn) |
-|:---|:---|:---|
-| `ADMIN` | Quản trị viên | Gần như toàn bộ (không phải break-glass EMR đúng v13) |
-| `RECEPTIONIST` | Tiếp nhận | Tiếp nhận, BN, thu ngân, kho (xem), BH, bảo hành |
-| `DOCTOR` | Bác sĩ | Tiếp nhận, BN, EMR, kho, Labo, bảo hành |
-| `ASSISTANT` | Phụ tá | Tiếp nhận, BN, EMR, kho, tiệt trùng, Labo |
-| `ACCOUNTANT` | Kế toán viên | Thu ngân, kho, BH, kế toán, HR, TSCĐ |
-| `CHIEF_ACCOUNTANT` | Kế toán trưởng | Thu ngân, kho, BH, kế toán, HR, TSCĐ |
-| `INVENTORY_MANAGER` | Quản lý kho | Kho, tiệt trùng, TSCĐ |
-
-Tạo user: `POST /api/auth/users` (**chỉ ADMIN**). Chính sách mật khẩu code: ≥ 9 ký tự, có chữ hoa, có ký tự đặc biệt.
-
-**Lệch đặc tả v13 cần nhớ khi update:**
-
-- Admin **vẫn xem EMR** trên UI/API (chưa Break-glass).
-- `POST /patients` và `POST /visits` **chỉ RECEPTIONIST**; Admin bấm “Tiếp nhận mới” trên UI có thể bị 403.
-- Chưa MFA, chưa thu hồi phiên, chưa khóa tài khoản sau nhiều lần sai (chỉ rate-limit login 10 lần / 15 phút).
-
----
-
-## 4. Bảng chức năng theo module (để kiểm soát khi update)
-
-### 4.1 Đăng nhập & dashboard — **DONE** (cơ bản)
-
-Đã có:
-
-- Màn hình đăng nhập, JWT, 401 tự đăng xuất.
-- Sidebar lọc theo role, dashboard: lượt hôm nay, hàng chờ, giá trị tồn, lối tắt.
-
-Còn thiếu:
-
-- MFA, refresh token, logout server-side, khóa phiên.
-
----
-
-### 4.2 Hồ sơ bệnh nhân — **PARTIAL**
-
-Đã có:
-
-- Mã `BN#000001` (sequence, không reset theo ngày).
-- Tạo hồ sơ: họ tên, NS, giới tính, SĐT `0xxxxxxxxx`, CCCD (mã hóa + hash dò trùng), địa chỉ, dị ứng, tiền sử.
-- Cảnh báo trùng **SĐT hoặc CCCD** (API 409 `PATIENT_DUPLICATE_MATCH`).
-- Soft-delete có lý do + audit.
-- UI danh sách + tìm kiếm; tạo kèm lượt khám trong một form tiếp nhận.
-
-Còn thiếu so với v13:
-
-- Cảnh báo trùng SĐT dạng popup “mở hồ sơ cũ” trên UI (API đã trả `matches`).
-- Nhóm tuổi, quốc tịch, BHYT/BHTM trên hồ sơ, MST/HĐĐT.
-- Patient Merge (`MERGED`, không sửa mã BN).
-- Sửa hồ sơ (PUT/PATCH).
-- `POST /patients` cho ADMIN (hiện chỉ lễ tân).
-
----
-
-### 4.3 Lượt tiếp nhận (Visit) — **PARTIAL**
-
-Đã có:
-
-- Mã `STN#YYYYMMDD#/0001`, reset theo ngày (`VisitCounters`).
-- Loại: `NEW` / `FOLLOW_UP_PAID` / `FOLLOW_UP_FREE`.
-- Gán bác sĩ; trạng thái `-1, 0, 1, 2, 3, 4` với ma trận chuyển `canTransitionVisit`.
-- Hủy khi `0` hoặc `1`; UI hủy lượt.
-- Duyệt chuyên môn `1 → 2` khóa bệnh án; chốt tính phí chuyển tuần tự `2 → 3`; thu đủ chuyển `3 → 4`.
-- Hủy chốt `2 → 1` để mở sửa; hủy chờ thanh toán `3 → 2` chỉ khi chưa phát sinh thanh toán. Không cho lùi sau hoàn tất `4`.
-- Ca 0đ vẫn đi tuần tự `2 → 3 → 4` trong cùng transaction, không tạo giao dịch thu 0đ.
-- Hiện chưa có chức năng/API in phiếu hoặc hóa đơn; khi bổ sung phải chặn nếu `Status < 2`.
-
-Còn thiếu:
-
-- Ghế nha / phòng / chi nhánh.
-- Đối tượng thanh toán (tự trả / BHTM / BHYT).
-- Dịch vụ đăng ký ban đầu tại quầy (không hạch toán).
-- Liên kết `Treatment_Phase_ID` / STN gốc cho tái khám.
-- Chữ ký số MySign khi chốt ca đang tạm hoãn; luồng hiện tại chỉ chốt nghiệp vụ (mục **4.14**).
-
----
-
-### 4.4 EMR & đồng thuận — **PARTIAL**
-
-Đã có:
-
-- Danh mục dịch vụ lâm sàng (`GET/POST /clinical/services`).
-- EMR: sinh hiệu, sơ đồ răng FDI (chọn răng), chẩn đoán, diễn biến; ghi chú mã hóa; bác sĩ chỉ sửa ca được gán.
-- Dữ liệu EMR chỉ sửa ở `Status = 1`; status từ `2` trở lên bị khóa cho đến khi hủy chốt lùi về `1`.
-- Thêm chỉ định: snapshot giá vào `VisitServiceItems`.
-- Consent điện tử: chữ ký PNG, mã hóa, SHA-256, chỉ dịch vụ xâm lấn đã chỉ định, khi ca đang `Status = 1`.
-- Thu hồi consent (`revoke` + lý do).
-- Gatekeeper chốt ca: bắt buộc EMR đã lưu; thiếu consent xâm lấn thì 409 `CONSENT_REQUIRED`.
-- UI tab: Tổng quan / Sinh hiệu / Sơ đồ răng / Khám lâm sàng / Điều trị + modal ký.
-
-Còn thiếu (tabs A–I v13):
-
-- Tab đơn thuốc, CLS, vật tư đặc thù, phiếu Labo trong EMR, lời dặn sau khám đầy đủ.
-- Phân quyền phụ tá đúng ma trận (Tab A/B/G/I hạn chế; cấm kê thuốc / chốt ca).
-- Addendum sau khi khóa bệnh án.
-- Cờ banner dị ứng nhấp nháy, trạng thái consent trên header.
-- UI thu hồi consent (API revoke đã có).
-- Chỉ cho thu hồi consent khi lượt khám đang mở (`Status = 1`); nếu đã chốt, phải hủy chốt về `1` trước.
-- **Không nhầm với MySign:** chữ ký PNG trên tablet là đồng thuận **người bệnh**; MySign là chữ ký số **Bác sĩ / Kế toán trưởng** (mục 4.14).
-
----
-
-### 4.5 Thu ngân & ca quỹ — **PARTIAL → gần DONE luồng chính**
-
-Đã có:
-
-- Mở ca (`openingFloat`), thu tiền `CASH` / `BANK_TRANSFER` / `CARD`.
-- Tiền mặt bắt buộc gắn ca `OPEN`; idempotency key; thu đúng số còn phải thu (exact balance).
-- Đóng ca → `PENDING_CLOSE` (kể cả khi khớp tiền).
-- Đối soát độc lập: `ADMIN` hoặc `CHIEF_ACCOUNTANT` **khác** người mở ca → `RECONCILED`.
-- UI: hàng chờ status `3`, mở/đóng ca, duyệt ca.
-
-Còn thiếu:
-
-- Cọc, ghi nợ, hoàn tiền.
-- Chiết khấu + ma trận duyệt, trần làm tròn `MAX_ROUNDING_AMOUNT`.
-- Ngưỡng `CASH_OVER_SHORT_THRESHOLD` và hạch toán 1388/3388.
-- Hóa đơn điện tử.
-- Kế toán viên đối soát (API reconcile hiện ADMIN / CHIEF_ACCOUNTANT).
-
----
-
-### 4.6 Kho vật tư — **PARTIAL → luồng FIFO/reserve dùng được**
-
-Đã có:
-
-- Sản phẩm, kho, tồn theo lô (hạn dùng, serial tùy chọn, reserved/blocked/available).
-- Nhập kho; xuất FIFO tách lô trong transaction; không xuất lô hết hạn.
-- Reserve → Consume → Release (lý do ≥ 5 ký tự); hết hạn reservation khi consume.
-- UI: tồn, cận hạn, tồn thấp, giữ/tiêu thụ/giải phóng.
-
-Còn thiếu:
-
-- Serial duy nhất bắt buộc với hàng cấy ghép.
-- Xuất hủy hết hạn/hư hỏng có quy trình riêng.
-- Job tự động release reservation hết hạn.
-- Đối soát kế toán kho (621/152/156/632 tự động).
-- UI xuất theo `visitId` (field có nhưng danh sách lượt khám trống).
-
----
-
-### 4.7 Tiệt trùng — **PARTIAL** (list/create)
-
-Đã có: ghi chu trình hấp (nhiệt độ, áp suất, phút, PENDING/PASSED/FAILED); PASSED → `SterileUntil` +30 ngày.
-
-Còn thiếu: tem QR khay, quét tại ghế, FEFO gói dụng cụ, cấm dùng khay hết hạn trong EMR.
-
----
-
-### 4.8 Labo — **PARTIAL** (list/create)
-
-Đã có: phiếu gắn visit đang hoạt động (`1–4`), mã `LB#…`.
-
-Còn thiếu: vòng đời gửi → nhận → gắn → rework; công nợ Labo; đóng vòng rework.
-
----
-
-### 4.9 Bảo hiểm — **PARTIAL** (list/create)
-
-Đã có: claim từ visit status `3` hoặc `4` và `TotalAmount > 0`; loại COMMERCIAL / BHYT.
-
-Còn thiếu: SUBMITTED → APPROVED/DISPUTED; XML Bảng 1-2-3 QĐ 4210; số tiền được duyệt.
-
----
-
-### 4.10 Bảo hành — **PARTIAL** (list/create)
-
-Đã có: cấp thẻ cho visit `Status = 4`; số tháng hiệu lực.
-
-Còn thiếu: kích hoạt ca bảo hành miễn phí (cùng cơ chế `2 → 4` 0đ); hết hạn tự động; lịch sử sử dụng thẻ.
-
----
-
-### 4.11 Kế toán — **PARTIAL**
-
-Đã có:
-
-- Chart of accounts (111, 112, 131, 152, 156, 331, 511, 632, 641, 642, 811 + bản 004).
-- Tạo bút toán cân Nợ=Có (≥ 2 dòng); SoD: người lập không tự duyệt; UI nhập `linesJson`.
-- Danh sách bút toán; Kế toán trưởng duyệt bút toán do người khác lập.
-
-Còn thiếu:
-
-- Ma trận định khoản tự động từ thu/chi/kho.
-- POSTED / ghi sổ / báo cáo tài chính.
-- VAT theo chính sách phòng khám (không suy từ một khoản thu).
-- UI dòng bút toán thân thiện (không JSON).
-- Ghi sổ `POSTED` và báo cáo tài chính.
-
----
-
-### 4.12 Nhân sự & TSCĐ — **PARTIAL** (list/create)
-
-Đã có: nhân viên (chức danh, CCHN, SĐT mã hóa); TSCĐ (ghế, imaging, autoclave, nguyên giá, số tháng KH).
-
-Còn thiếu: chấm công, bảng lương, hoa hồng cash-basis + clawback; khấu hao định kỳ TK 2141; lịch bảo trì.
-
----
-
-### 4.13 Audit, lưu trữ, hạ tầng — **PARTIAL**
-
-Đã có: `AuditLogs` cho login, tạo user, đọc/tạo BN/visit, EMR/consent, thu, kho, module operations; session context khi xóa.
-
-Còn thiếu: break-glass 60 phút; cold storage 10–15 năm; DR tự động; e-invoice; 2FA.
-
----
-
-### 4.14 Ký duyệt điện tử — **PLANNED (tạm hoãn)**
-
-Tạm hoãn tích hợp MySign/Viettel-CA theo yêu cầu. Không tạo giao dịch ký demo, không yêu cầu ký số khi chốt bệnh án hoặc duyệt bút toán. Hiện sử dụng luồng duyệt nghiệp vụ hiện có: bác sĩ chốt lượt khám; Kế toán trưởng duyệt bút toán cân, do người khác lập (SoD).
-
-Còn thiếu: tích hợp Viettel-CA thật, chữ ký/timestamp kiểm chứng được, ký PDF/A và test tích hợp với nhà cung cấp. Không xem bước duyệt nội bộ là chữ ký số pháp lý.
-
----
-
-## 5. Bản đồ API (đã implement)
-
-Mọi route trừ `/health` và login cần JWT.
-
-| Method | Path | Ghi chú |
-|:---|:---|:---|
-| POST | `/api/auth/login` | Rate limit |
-| POST | `/api/auth/users` | ADMIN |
-| GET | `/api/staff/doctors` | |
-| GET/POST | `/api/patients` | POST: RECEPTIONIST |
-| DELETE | `/api/patients/:patientId` | Soft-delete |
-| GET/POST | `/api/visits` | POST: RECEPTIONIST |
-| PATCH | `/api/visits/:visitId/status` | |
-| GET/POST | `/api/clinical/services` | |
-| GET/PUT | `/api/clinical/visits/:visitId/emr` | |
-| POST | `/api/clinical/visits/:visitId/services` | |
-| POST | `/api/clinical/consents` | |
-| POST | `/api/clinical/consents/:consentId/revoke` | |
-| POST | `/api/clinical/visits/:visitId/settle` | Chốt lượt khám sau kiểm tra EMR/đồng thuận |
-| GET | `/api/cashier/shifts/current` | |
-| GET | `/api/cashier/shifts/pending` | |
-| GET | `/api/cashier/payments` | |
-| POST | `/api/cashier/shifts/open` | |
-| POST | `/api/cashier/shifts/close` | |
-| POST | `/api/cashier/shifts/:id/reconcile` | SoD |
-| POST | `/api/visits/:visitId/payments` | Idempotent |
-| GET/POST | `/api/inventory/products` | |
-| GET/POST | `/api/inventory/warehouses` | |
-| GET | `/api/inventory` | Tồn lô |
-| POST | `/api/inventory/receipts` | |
-| POST | `/api/inventory/issues` | FIFO |
-| GET | `/api/inventory/reservation-visits` | |
-| GET/POST | `/api/inventory/reservations` | |
-| POST | `/api/inventory/reservations/:id/consume` | |
-| POST | `/api/inventory/reservations/:id/release` | |
-| GET/POST | `/api/sterilization/cycles` | |
-| GET/POST | `/api/operations/labo` | |
-| GET/POST | `/api/insurance/claims` | |
-| GET/POST | `/api/warranties` | |
-| GET/POST | `/api/hr/employees` | |
-| GET/POST | `/api/assets` | |
-| GET/POST | `/api/accounting/journals` | |
-| POST | `/api/accounting/journals/:id/approve` | SoD + kiểm tra bút toán cân |
-
----
-
-## 6. File quan trọng khi sửa code
-
-| File | Vai trò |
-|:---|:---|
-| `Quy_trinh_v13_NhaKhoa.md` | Đặc tả nghiệp vụ mục tiêu (bảng §0.1 **lỗi thời** so với code; ưu tiên README + file này) |
-| `backend/README.md` | Setup, gap kỹ thuật, chart of accounts |
-| `backend/src/domain/invariants.ts` | Chuyển trạng thái visit, FIFO, journal, đóng ca |
-| `backend/src/middleware/auth.ts` | Role |
-| `backend/src/security/pii.ts` | Mã hóa PII |
-| `frontend/src/App.tsx` | Toàn bộ UI |
-| `frontend/src/api.ts` | Client fetch + danh sách section |
-
-Khi thêm module: schema SQL (kèm `*Deleted` + trigger) → API + RBAC + audit → UI + cập nhật **mục 4 và mục 8** của file này.
-
----
-
-## 7. Gợi ý thứ tự update tiếp theo
-
-Ưu tiên bám v13 và phần đã có nền:
-
-1. Sửa quyền tạo BN/visit cho ADMIN; popup trùng hồ sơ trên UI.
-2. Gắn revoke consent với chuyển `2 → 1`; nút thu hồi trên EMR.
-3. Phân quyền phụ tá trên EMR; khóa tab sau chốt.
-4. Vòng đời Labo / insurance / warranty (PATCH status), không chỉ create.
-5. Quét khay tiệt trùng + chặn EMR nếu hết hạn.
-6. Chiết khấu / làm tròn / cọc-hoàn; ngưỡng lệch két.
-7. Ma trận định khoản tự động + bỏ nhập JSON.
-8. MFA, break-glass, integration test.
-
-**Cố ý chưa làm (Lean MVP):** booking lịch phức tạp, CSKH omnichannel, PO mua hàng nhiều cấp.
-
----
-
-## 8. Changelog (ghi tiếp mỗi lần update)
-
-Quy tắc: mỗi lần xong một chức năng, thêm một mục **mới nhất ở trên**. Đánh dấu lại bảng mục 4.
-
-### 2026-10-09 — Tạm hoãn Viettel-CA, giữ luồng duyệt nội bộ
-
-- Gỡ ký số demo và không yêu cầu Viettel-CA khi chốt bệnh án hoặc duyệt bút toán.
-- Giữ luồng chốt lượt khám hiện có và duyệt bút toán của Kế toán trưởng với kiểm tra SoD/cân đối.
-- Tích hợp Viettel-CA được ghi nhận là phần chưa triển khai; không dùng duyệt nội bộ thay cho chữ ký số pháp lý.
-
----
-
-### 2026-10-09 — Rà soát baseline & tạo file này
-
-- Rà soát `frontend` + `backend` + SQL 001–004 so với v13.
-- Kết luận: UI đủ 13 màn hình; lõi tiếp nhận / EMR-consent / thu ngân-ca quỹ / kho FIFO-reserve đã chạy happy-path.
-- Module tiệt trùng, Labo, BH, bảo hành, HR, TSCĐ: **chỉ list + create**.
-- Chưa production; thiếu MFA, HĐĐT, payroll, journal matrix, test tích hợp.
-
----
-
-*Cập nhật file này cùng lúc với code. Không đánh **DONE** nếu thiếu một trong: schema, API, UI, test nhánh lỗi chính.*

@@ -15,10 +15,10 @@ export function OperationalModule({ section, user, onNotice }: { section: Operat
   }, [config.endpoint, onNotice]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
-    const listener = (event: Event) => { if ((event as CustomEvent).detail === section) setIsOpen(true); };
+    const listener = (event: Event) => { if ((event as CustomEvent).detail === section && config.createRoles.includes(user.role)) setIsOpen(true); };
     window.addEventListener("erp:open-create", listener);
     return () => window.removeEventListener("erp:open-create", listener);
-  }, [section]);
+  }, [config.createRoles, section, user.role]);
   async function submit(event: FormEvent) {
     event.preventDefault(); setBusy(true);
     const payload = Object.fromEntries(Object.entries(form).map(([key, value]) => config.numericFields.includes(key) ? [key, Number(value)] : [key, value]));
@@ -39,10 +39,10 @@ export function OperationalModule({ section, user, onNotice }: { section: Operat
       onNotice(error instanceof Error ? error.message : "Không thể duyệt bút toán.", "error");
     }
   }
-  const readOnly = !config.roles.includes(user.role);
+  const canCreate = config.createRoles.includes(user.role);
   return <div className="module-content">
     <div className="stats-strip">{config.stats.map((stat) => <MiniStat key={stat.label} label={stat.label} value={typeof stat.value === "function" ? stat.value(rows) : stat.value} icon={stat.icon} tint={stat.tint} />)}</div>
-    <div className="panel table-panel"><div className="table-toolbar"><div className="filter-tabs"><button className="filter-active">{config.title} <span>{rows.length}</span></button><button onClick={() => load()}>Cập nhật</button></div><div className="table-tools"><label className="search-box"><Search size={16} /><input placeholder={`Tìm trong ${config.title.toLocaleLowerCase("vi")}...`} /></label>{!readOnly && <button className="primary-button compact-action" onClick={() => setIsOpen(true)}><Plus size={15} />{config.createLabel}</button>}</div></div>
+    <div className="panel table-panel"><div className="table-toolbar"><div className="filter-tabs"><button className="filter-active">{config.title} <span>{rows.length}</span></button><button onClick={() => load()}>Cập nhật</button></div><div className="table-tools"><label className="search-box"><Search size={16} /><input placeholder={`Tìm trong ${config.title.toLocaleLowerCase("vi")}...`} /></label>{canCreate && <button className="primary-button compact-action" onClick={() => setIsOpen(true)}><Plus size={15} />{config.createLabel}</button>}</div></div>
       {section === "sterilization" && <div className="sterilization-note"><ShieldCheck size={17} /><span><strong>Kiểm soát vô khuẩn:</strong> Khay chỉ được sử dụng khi chu trình hấp đạt và còn trong hạn vô trùng 30 ngày.</span></div>}
       {section === "finance" && <div className="accounting-standards"><span className="accounting-doc-icon"><ClipboardList size={18} /></span><span><strong>Danh mục tài khoản doanh nghiệp · TT 99/2025/TT-BTC</strong><small>Tiền mặt 111 · Tiền gửi 112 · Phải thu 131 · Nguyên vật liệu 152 · Hàng hóa 156 · Doanh thu 511 · Giá vốn 632</small></span><BadgeCheck size={18} /></div>}
       {section === "insurance" && <div className="accounting-standards"><span className="accounting-doc-icon"><ShieldCheck size={18} /></span><span><strong>Hồ sơ BHYT / BHTM theo lượt khám</strong><small>Claim được sinh từ lượt khám và hoàn tất chốt dịch vụ; theo dõi trạng thái DRAFT → SUBMITTED → APPROVED / DISPUTED.</small></span></div>}
@@ -60,7 +60,7 @@ type ModuleConfig = {
   createEndpoint: string;
   createLabel: string;
   rowKey: string;
-  roles: string[];
+  createRoles: string[];
   stats: { label: string; value: ReactNode | ((rows: Record<string, unknown>[]) => ReactNode); icon: typeof Home; tint: string }[];
   columns: { key: string; label: string; render?: (value: unknown, row: Record<string, unknown>) => ReactNode }[];
   fields: { key: string; label: string; type?: string; required?: boolean; wide?: boolean; options?: { value: string; label: string }[] }[];
@@ -73,7 +73,7 @@ type ModuleConfig = {
 
 const moduleConfigs: Record<OperationalSection, ModuleConfig> = {
   sterilization: {
-    title: "Chu trình tiệt trùng", endpoint: "/sterilization/cycles", createEndpoint: "/sterilization/cycles", createLabel: "Ghi chu trình hấp", rowKey: "SterilizationCycleId", roles: ["ADMIN", "INVENTORY_MANAGER", "ASSISTANT"],
+    title: "Chu trình tiệt trùng", endpoint: "/sterilization/cycles", createEndpoint: "/sterilization/cycles", createLabel: "Ghi chu trình hấp", rowKey: "SterilizationCycleId", createRoles: ["ADMIN", "INVENTORY_MANAGER", "ASSISTANT"],
     stats: [
       { label: "TỔNG CHU TRÌNH", value: (rows) => rows.length, icon: Sparkles, tint: "blue" },
       { label: "ĐẠT KIỂM ĐỊNH", value: (rows) => rows.filter((row) => row.Status === "PASSED").length, icon: Check, tint: "green" },
@@ -85,7 +85,7 @@ const moduleConfigs: Record<OperationalSection, ModuleConfig> = {
     numericFields: ["temperatureC", "pressureKpa", "durationMinutes"], emptyTitle: "Chưa có chu trình hấp", emptyBody: "Ghi nhận chu trình để theo dõi hạn vô khuẩn và khay dụng cụ.", modalTitle: "Ghi nhận chu trình tiệt trùng", modalSubtitle: "Kết quả đã đạt/không đạt sẽ được lưu vết, không thể sửa đè."
   },
   lab: {
-    title: "Phiếu Labo", endpoint: "/operations/labo", createEndpoint: "/operations/labo", createLabel: "Tạo phiếu Labo", rowKey: "LaboTicketId", roles: ["ADMIN", "DOCTOR", "ASSISTANT"],
+    title: "Phiếu Labo", endpoint: "/operations/labo", createEndpoint: "/operations/labo", createLabel: "Tạo phiếu Labo", rowKey: "LaboTicketId", createRoles: ["ADMIN", "DOCTOR", "ASSISTANT"],
     stats: [
       { label: "TỔNG PHIẾU", value: (rows) => rows.length, icon: FlaskConical, tint: "blue" },
       { label: "ĐANG GIA CÔNG", value: (rows) => rows.filter((row) => row.Status === "IN_PROGRESS").length, icon: Clock3, tint: "amber" },
@@ -97,7 +97,7 @@ const moduleConfigs: Record<OperationalSection, ModuleConfig> = {
     numericFields: ["estimatedCost"], emptyTitle: "Chưa có phiếu gia công", emptyBody: "Phiếu Labo mới sẽ liên kết trực tiếp đến lượt khám.", modalTitle: "Tạo phiếu gửi Labo", modalSubtitle: "Mã phiếu được sinh tự động và liên kết với hồ sơ điều trị."
   },
   insurance: {
-    title: "Hồ sơ bảo hiểm", endpoint: "/insurance/claims", createEndpoint: "/insurance/claims", createLabel: "Tạo hồ sơ BH", rowKey: "InsuranceClaimId", roles: ["ADMIN", "RECEPTIONIST", "ACCOUNTANT", "CHIEF_ACCOUNTANT"],
+    title: "Hồ sơ bảo hiểm", endpoint: "/insurance/claims", createEndpoint: "/insurance/claims", createLabel: "Tạo hồ sơ BH", rowKey: "InsuranceClaimId", createRoles: ["ADMIN", "RECEPTIONIST", "ACCOUNTANT", "CHIEF_ACCOUNTANT"],
     stats: [
       { label: "TỔNG HỒ SƠ", value: (rows) => rows.length, icon: ShieldCheck, tint: "blue" },
       { label: "CHỜ GỬI GIÁM ĐỊNH", value: (rows) => rows.filter((row) => row.Status === "DRAFT").length, icon: Clock3, tint: "amber" },
@@ -109,7 +109,7 @@ const moduleConfigs: Record<OperationalSection, ModuleConfig> = {
     numericFields: [], emptyTitle: "Chưa có hồ sơ bảo hiểm", emptyBody: "Hồ sơ bảo lãnh gắn với giao dịch và lượt khám gốc.", modalTitle: "Tạo hồ sơ yêu cầu bảo hiểm", modalSubtitle: "Hồ sơ giữ tham chiếu giao dịch gốc phục vụ đối soát."
   },
   warranty: {
-    title: "Thẻ bảo hành", endpoint: "/warranties", createEndpoint: "/warranties", createLabel: "Cấp bảo hành", rowKey: "WarrantyId", roles: ["ADMIN", "RECEPTIONIST", "DOCTOR"],
+    title: "Thẻ bảo hành", endpoint: "/warranties", createEndpoint: "/warranties", createLabel: "Cấp bảo hành", rowKey: "WarrantyId", createRoles: ["ADMIN", "RECEPTIONIST", "DOCTOR"],
     stats: [
       { label: "TỔNG THẺ", value: (rows) => rows.length, icon: BadgeCheck, tint: "blue" },
       { label: "ĐANG HIỆU LỰC", value: (rows) => rows.filter((row) => row.Status === "ACTIVE").length, icon: Check, tint: "green" },
@@ -121,7 +121,7 @@ const moduleConfigs: Record<OperationalSection, ModuleConfig> = {
     numericFields: ["monthsValid"], emptyTitle: "Chưa có thẻ bảo hành", emptyBody: "Thẻ bảo hành được tra cứu và liên kết với lượt khám điều trị.", modalTitle: "Cấp thẻ bảo hành dịch vụ", modalSubtitle: "Không ghi nhận doanh thu khi tái khám bảo hành miễn phí."
   },
   finance: {
-    title: "Bút toán sổ cái", endpoint: "/accounting/journals", createEndpoint: "/accounting/journals", createLabel: "Tạo bút toán", rowKey: "JournalEntryId", roles: ["ADMIN", "ACCOUNTANT"],
+    title: "Bút toán sổ cái", endpoint: "/accounting/journals", createEndpoint: "/accounting/journals", createLabel: "Tạo bút toán", rowKey: "JournalEntryId", createRoles: ["ACCOUNTANT"],
     stats: [
       { label: "BÚT TOÁN", value: (rows) => rows.length, icon: ClipboardList, tint: "blue" },
       { label: "CHỜ DUYỆT", value: (rows) => rows.filter((row) => row.Status === "DRAFT").length, icon: Clock3, tint: "amber" },
@@ -133,7 +133,7 @@ const moduleConfigs: Record<OperationalSection, ModuleConfig> = {
     numericFields: [], emptyTitle: "Chưa có bút toán", emptyBody: "Bút toán phát sinh sẽ liên kết chứng từ nghiệp vụ và lưu dấu vết.", modalTitle: "Tạo bút toán kế toán", modalSubtitle: "Nhập tối thiểu hai dòng; tổng phát sinh Nợ phải bằng tổng phát sinh Có."
   },
   hr: {
-    title: "Danh sách nhân sự", endpoint: "/hr/employees", createEndpoint: "/hr/employees", createLabel: "Thêm nhân sự", rowKey: "EmployeeId", roles: ["ADMIN", "ACCOUNTANT"],
+    title: "Danh sách nhân sự", endpoint: "/hr/employees", createEndpoint: "/hr/employees", createLabel: "Thêm nhân sự", rowKey: "EmployeeId", createRoles: ["ADMIN", "ACCOUNTANT"],
     stats: [
       { label: "NHÂN SỰ", value: (rows) => rows.length, icon: Users, tint: "blue" },
       { label: "BÁC SĨ", value: (rows) => rows.filter((row) => row.Position === "DOCTOR").length, icon: Stethoscope, tint: "violet" },
@@ -145,7 +145,7 @@ const moduleConfigs: Record<OperationalSection, ModuleConfig> = {
     numericFields: [], emptyTitle: "Chưa có hồ sơ nhân sự", emptyBody: "Thêm hồ sơ nhân viên cùng chức danh và thông tin hành nghề.", modalTitle: "Thêm hồ sơ nhân sự", modalSubtitle: "Lưu trữ thông tin nghề nghiệp theo quyền được giao."
   },
   assets: {
-    title: "Tài sản cố định", endpoint: "/assets", createEndpoint: "/assets", createLabel: "Thêm tài sản", rowKey: "AssetId", roles: ["ADMIN", "ACCOUNTANT", "INVENTORY_MANAGER"],
+    title: "Tài sản cố định", endpoint: "/assets", createEndpoint: "/assets", createLabel: "Thêm tài sản", rowKey: "AssetId", createRoles: ["ADMIN", "ACCOUNTANT", "INVENTORY_MANAGER"],
     stats: [
       { label: "TÀI SẢN", value: (rows) => rows.length, icon: Layers3, tint: "blue" },
       { label: "ĐANG SỬ DỤNG", value: (rows) => rows.filter((row) => row.Status === "ACTIVE").length, icon: Check, tint: "green" },

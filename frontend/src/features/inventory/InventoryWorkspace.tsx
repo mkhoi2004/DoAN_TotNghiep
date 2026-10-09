@@ -16,6 +16,7 @@ export function InventoryWorkspace({ user, onNotice }: { user: CurrentUser; onNo
   const [busy, setBusy] = useState(false);
   const canManage = ["ADMIN", "INVENTORY_MANAGER"].includes(user.role);
   const canReserve = ["ADMIN", "DOCTOR", "ASSISTANT", "INVENTORY_MANAGER"].includes(user.role);
+  const canIssue = ["ADMIN", "INVENTORY_MANAGER", "DOCTOR"].includes(user.role);
   const load = useCallback(async () => {
     try {
       const [stock, items, stores, activeReservations] = await Promise.all([
@@ -85,7 +86,7 @@ export function InventoryWorkspace({ user, onNotice }: { user: CurrentUser; onNo
   return <div className="module-content">
     <div className="stats-strip"><MiniStat label="MẶT HÀNG" value={products.length} icon={Package} tint="blue" /><MiniStat label="TỔNG LÔ HÀNG" value={lots.length} icon={Layers3} tint="violet" /><MiniStat label="LÔ SẮP HẾT HẠN" value={nearExpiry} icon={Clock3} tint="amber" /><MiniStat label="CẢNH BÁO TỒN THẤP" value={lowStock} icon={ArrowDownRight} tint="red" /></div>
     <section className="panel table-panel"><div className="table-toolbar"><div className="filter-tabs"><button className="filter-active">Tồn kho <span>{lots.length}</span></button><button onClick={() => onNotice("Danh sách hiện được sắp xếp FIFO theo thời điểm nhận lô.")}>Theo lô</button><button onClick={() => setQuery("")}>Cận hạn <span>{nearExpiry}</span></button></div><div className="table-tools"><label className="search-box"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm tên hàng, mã lô..." /></label>{canManage && <><button className="secondary-button compact-action" onClick={() => setModal("product")}><Plus size={15} />Mặt hàng</button><button className="primary-button compact-action" onClick={() => setModal("receipt")}><ArrowDownRight size={15} />Nhập kho</button></>}</div></div>
-      <div className="inventory-toolbar"><span><Package size={16} />{warehouses.length} kho lưu trữ</span><span>Giá trị hàng khả dụng <strong>{money(lots.reduce((sum, lot) => sum + lot.QuantityAvailable * lot.UnitCost, 0))}</strong></span>{canReserve && <button className="secondary-button compact-action" onClick={() => { setForm({ expiresInMinutes: "240" }); setModal("reserve"); }}>Dự trữ cho ca khám</button>}<button className="text-button" onClick={() => setModal("issue")}>Xuất FIFO <ArrowRight size={15} /></button></div>
+      <div className="inventory-toolbar"><span><Package size={16} />{warehouses.length} kho lưu trữ</span><span>Giá trị hàng khả dụng <strong>{money(lots.reduce((sum, lot) => sum + lot.QuantityAvailable * lot.UnitCost, 0))}</strong></span>{canReserve && <button className="secondary-button compact-action" onClick={() => { setForm({ expiresInMinutes: "240" }); setModal("reserve"); }}>Dự trữ cho ca khám</button>}{canIssue && <button className="text-button" onClick={() => setModal("issue")}>Xuất FIFO <ArrowRight size={15} /></button>}</div>
       <div className="table-scroll"><table className="data-table"><thead><tr><th>MẶT HÀNG</th><th>MÃ LÔ / SERIAL</th><th>KHO</th><th>HẠN DÙNG</th><th>KHẢ DỤNG</th><th>ĐƠN GIÁ VỐN</th><th>TRẠNG THÁI</th></tr></thead><tbody>{filtered.map((lot) => {
         const expired = new Date(lot.ExpiresAt).getTime() < Date.now();
         const near = !expired && new Date(lot.ExpiresAt).getTime() < Date.now() + 60 * 86400000;

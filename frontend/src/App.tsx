@@ -7,29 +7,29 @@ import { EmrWorkspace } from "./features/emr/EmrWorkspace";
 import { CashierWorkspace } from "./features/cashier/CashierWorkspace";
 import { InventoryWorkspace } from "./features/inventory/InventoryWorkspace";
 import { OperationalModule } from "./features/operations/OperationalModule";
-import { roleNames } from "./shared/constants";
+import { canAccessSection, canCreateInSection, roleNames, sectionRoles } from "./shared/constants";
 
 type NavItem = {
   id: Section;
   label: string;
   icon: typeof Home;
-  roles: string[];
+  roles: readonly string[];
 };
 
 const navItems: NavItem[] = [
-  { id: "dashboard", label: "Tổng quan", icon: Home, roles: [] },
-  { id: "reception", label: "Tiếp nhận", icon: CalendarDays, roles: ["ADMIN", "RECEPTIONIST", "DOCTOR", "ASSISTANT"] },
-  { id: "patients", label: "Hồ sơ bệnh nhân", icon: Users, roles: ["ADMIN", "RECEPTIONIST", "DOCTOR", "ASSISTANT"] },
-  { id: "emr", label: "Bệnh án điện tử", icon: FileHeart, roles: ["ADMIN", "DOCTOR", "ASSISTANT"] },
-  { id: "cashier", label: "Thu ngân & ca quỹ", icon: WalletCards, roles: ["ADMIN", "RECEPTIONIST", "ACCOUNTANT", "CHIEF_ACCOUNTANT"] },
-  { id: "inventory", label: "Kho vật tư", icon: Package, roles: ["ADMIN", "RECEPTIONIST", "DOCTOR", "ASSISTANT", "ACCOUNTANT", "CHIEF_ACCOUNTANT", "INVENTORY_MANAGER"] },
-  { id: "sterilization", label: "Kiểm soát vô khuẩn", icon: Sparkles, roles: ["ADMIN", "ASSISTANT", "INVENTORY_MANAGER"] },
-  { id: "lab", label: "Phiếu Labo", icon: FlaskConical, roles: ["ADMIN", "DOCTOR", "ASSISTANT", "ACCOUNTANT", "CHIEF_ACCOUNTANT"] },
-  { id: "insurance", label: "Bảo hiểm", icon: ShieldCheck, roles: ["ADMIN", "RECEPTIONIST", "ACCOUNTANT", "CHIEF_ACCOUNTANT"] },
-  { id: "warranty", label: "Bảo hành", icon: BadgeCheck, roles: ["ADMIN", "RECEPTIONIST", "DOCTOR"] },
-  { id: "finance", label: "Kế toán", icon: CircleDollarSign, roles: ["ADMIN", "ACCOUNTANT", "CHIEF_ACCOUNTANT"] },
-  { id: "hr", label: "Nhân sự", icon: BriefcaseMedical, roles: ["ADMIN", "ACCOUNTANT", "CHIEF_ACCOUNTANT"] },
-  { id: "assets", label: "Tài sản", icon: Layers3, roles: ["ADMIN", "ACCOUNTANT", "CHIEF_ACCOUNTANT", "INVENTORY_MANAGER"] }
+  { id: "dashboard", label: "Tổng quan", icon: Home, roles: sectionRoles.dashboard },
+  { id: "reception", label: "Tiếp nhận", icon: CalendarDays, roles: sectionRoles.reception },
+  { id: "patients", label: "Hồ sơ bệnh nhân", icon: Users, roles: sectionRoles.patients },
+  { id: "emr", label: "Bệnh án điện tử", icon: FileHeart, roles: sectionRoles.emr },
+  { id: "cashier", label: "Thu ngân & ca quỹ", icon: WalletCards, roles: sectionRoles.cashier },
+  { id: "inventory", label: "Kho vật tư", icon: Package, roles: sectionRoles.inventory },
+  { id: "sterilization", label: "Kiểm soát vô khuẩn", icon: Sparkles, roles: sectionRoles.sterilization },
+  { id: "lab", label: "Phiếu Labo", icon: FlaskConical, roles: sectionRoles.lab },
+  { id: "insurance", label: "Bảo hiểm", icon: ShieldCheck, roles: sectionRoles.insurance },
+  { id: "warranty", label: "Bảo hành", icon: BadgeCheck, roles: sectionRoles.warranty },
+  { id: "finance", label: "Kế toán", icon: CircleDollarSign, roles: sectionRoles.finance },
+  { id: "hr", label: "Nhân sự", icon: BriefcaseMedical, roles: sectionRoles.hr },
+  { id: "assets", label: "Tài sản", icon: Layers3, roles: sectionRoles.assets }
 ];
 
 const sectionTitles: Record<Section, { eyebrow: string; title: string; subtitle: string }> = {
@@ -62,13 +62,15 @@ function App() {
     window.setTimeout(() => setNotice(null), 4500);
   }, []);
 
+  const handleUnauthorized = useCallback(() => {
+    setToken(null);
+    setCurrentUser(null);
+    setActiveSection("dashboard");
+  }, []);
+
   useEffect(() => {
-    setAccessToken(token, () => {
-      setToken(null);
-      setCurrentUser(null);
-      setActiveSection("dashboard");
-    });
-  }, [token]);
+    setAccessToken(token, handleUnauthorized);
+  }, [handleUnauthorized, token]);
 
   async function signIn(username: string, password: string) {
     try {
@@ -79,6 +81,7 @@ function App() {
         method: "POST",
         body: JSON.stringify({ username, password })
       });
+      setAccessToken(result.accessToken, handleUnauthorized);
       setToken(result.accessToken);
       setCurrentUser(result.user);
       setActiveSection("dashboard");
@@ -91,16 +94,22 @@ function App() {
   function signOut() {
     setToken(null);
     setCurrentUser(null);
-    setAccessToken(null);
+    setAccessToken(null, handleUnauthorized);
+  }
+
+  function navigateTo(section: Section) {
+    if (!currentUser || !canAccessSection(currentUser.role, section)) {
+      notify("Bạn không có quyền truy cập chức năng này.", "error");
+      return;
+    }
+    setActiveSection(section);
   }
 
   if (!token || !currentUser) {
     return <LoginScreen onSignIn={signIn} notice={notice} />;
   }
 
-  const visibleNav = navItems.filter(
-    (item) => item.roles.length === 0 || item.roles.includes(currentUser.role)
-  );
+  const visibleNav = navItems.filter((item) => item.roles.includes(currentUser.role));
 
   return (
     <div className="app-frame">
@@ -118,7 +127,7 @@ function App() {
         <div className="nav-caption">KHÔNG GIAN LÀM VIỆC</div>
         <nav className="sidebar-nav">
           {visibleNav.map(({ id, label, icon: Icon }) => (
-            <button key={id} className={`nav-item ${activeSection === id ? "nav-item-active" : ""}`} onClick={() => { setActiveSection(id); setSidebarOpen(false); }}>
+            <button key={id} className={`nav-item ${activeSection === id ? "nav-item-active" : ""}`} onClick={() => { navigateTo(id); setSidebarOpen(false); }}>
               <Icon size={18} strokeWidth={activeSection === id ? 2.2 : 1.8} />
               <span>{label}</span>
               {id === "reception" && <span className="nav-count">6</span>}
@@ -155,12 +164,12 @@ function App() {
           <SectionHeader
             section={activeSection}
             user={currentUser}
-            onNavigate={setActiveSection}
+            onNavigate={navigateTo}
           />
           {activeSection === "dashboard" ? (
             <Dashboard
               user={currentUser}
-              onNavigate={setActiveSection}
+              onNavigate={navigateTo}
               onNotice={notify}
             />
           ) : activeSection === "reception" || activeSection === "patients" ? (
@@ -169,8 +178,9 @@ function App() {
               user={currentUser}
               onNotice={notify}
               onOpenEmr={(visitId) => {
+                if (!canAccessSection(currentUser.role, "emr")) return;
                 window.sessionStorage.setItem("activeVisitId", visitId);
-                setActiveSection("emr");
+                navigateTo("emr");
               }}
             />
           ) : activeSection === "emr" ? (
@@ -254,8 +264,8 @@ function SectionHeader({ section, user, onNavigate }: { section: Section; user: 
       <div><span className="eyebrow">{content.eyebrow}</span><h1>{content.title}</h1><p>{content.subtitle}</p></div>
       <div className="heading-actions">
         {section === "dashboard" && <span className="today-chip"><span /> Thứ Sáu, 09/10</span>}
-        {hasPrimaryAction && user.role !== "DOCTOR" && user.role !== "ASSISTANT" && <button className="primary-button" onClick={() => window.dispatchEvent(new CustomEvent("erp:open-create", { detail: section }))}><Plus size={17} />{section === "patients" || section === "reception" ? "Tiếp nhận mới" : "Thêm mới"}</button>}
-        {section === "dashboard" && <button className="primary-button" onClick={() => onNavigate("reception")}><Plus size={17} />Tiếp nhận bệnh nhân</button>}
+        {hasPrimaryAction && canCreateInSection(user.role, section) && <button className="primary-button" onClick={() => window.dispatchEvent(new CustomEvent("erp:open-create", { detail: section }))}><Plus size={17} />{section === "patients" || section === "reception" ? "Tiếp nhận mới" : "Thêm mới"}</button>}
+        {section === "dashboard" && canCreateInSection(user.role, "reception") && <button className="primary-button" onClick={() => onNavigate("reception")}><Plus size={17} />Tiếp nhận bệnh nhân</button>}
       </div>
     </div>
   );

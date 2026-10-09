@@ -201,30 +201,34 @@ Mở `http://127.0.0.1:5173`. Vite proxy các request `/api` và `/health` sang
 backend ở cổng `3000`; vì vậy cần giữ cả hai terminal đang chạy. Đăng nhập bằng
 tài khoản `ADMIN` vừa bootstrap.
 
-## 6. Tài khoản demo theo vai trò (tùy chọn)
+## 6. Tài khoản demo theo vai trò
 
-Không có tài khoản hay mật khẩu mặc định được lưu trong repo. Có thể tạo user
-phát triển bằng seeder; seeder chỉ chạy khi `NODE_ENV` không phải `production`
-và không ghi đè username đã tồn tại. Từ thư mục `backend`, nhập mật khẩu tại
-prompt để không lưu trong shell history:
+Dữ liệu test dưới đây đã được tạo sẵn trong database local đang chạy ở môi
+trường phát triển; không có mật khẩu mặc định nào được lưu trong repo. Mỗi tài
+khoản tương ứng với một vai trò và menu/screen riêng của hệ thống.
+
+| Vai trò | Tài khoản | Mật khẩu |
+|:---|:---|:---|
+| `ADMIN` | `Admin` | `Admin@12345` |
+| `RECEPTIONIST` | `TiepNhan` | `TiepNhan@12345` |
+| `DOCTOR` | `BacSi` | `BacSi@12345` |
+| `ASSISTANT` | `PhuTa` | `PhuTa@12345` |
+| `ACCOUNTANT` | `KeToan` | `KeToan@12345` |
+| `CHIEF_ACCOUNTANT` | `KeToanTruong` | `KeToanTruong@12345` |
+| `INVENTORY_MANAGER` | `Kho` | `Kho@123456` |
+
+Mật khẩu đã tuân thủ chính sách: tối thiểu 9 ký tự, có chữ hoa và ký tự đặc
+biệt. Nếu cần tạo lại danh sách test, chạy lệnh sau từ thư mục `backend`:
 
 ```powershell
-$testPassword = [System.Net.NetworkCredential]::new("", (Read-Host "Mật khẩu test (ít nhất 9 ký tự, có chữ hoa và ký tự đặc biệt)" -AsSecureString)).Password
-$testUsers = @(
-  @{ username = "TiepNhan"; password = $testPassword; role = "RECEPTIONIST" },
-  @{ username = "BacSi"; password = $testPassword; role = "DOCTOR" },
-  @{ username = "KeToan"; password = $testPassword; role = "ACCOUNTANT" },
-  @{ username = "KeToanTruong"; password = $testPassword; role = "CHIEF_ACCOUNTANT" }
-)
-$env:TEST_USERS_JSON = ConvertTo-Json -InputObject $testUsers -Compress
+$env:TEST_USERS_JSON = '[{"username":"Admin","password":"Admin@12345","role":"ADMIN"},{"username":"TiepNhan","password":"TiepNhan@12345","role":"RECEPTIONIST"},{"username":"BacSi","password":"BacSi@12345","role":"DOCTOR"},{"username":"PhuTa","password":"PhuTa@12345","role":"ASSISTANT"},{"username":"KeToan","password":"KeToan@12345","role":"ACCOUNTANT"},{"username":"KeToanTruong","password":"KeToanTruong@12345","role":"CHIEF_ACCOUNTANT"},{"username":"Kho","password":"Kho@123456","role":"INVENTORY_MANAGER"}]'
 npm run seed-test-users
 Remove-Item Env:\TEST_USERS_JSON
-Remove-Variable testPassword, testUsers
 ```
 
-Đổi username/mật khẩu tùy ý; không sử dụng thông tin tài khoản thật trong demo.
 Seeder không tạo bệnh nhân/lượt khám mẫu. Tạo dữ liệu demo qua giao diện để
-kiểm soát dữ liệu và audit log.
+kiểm soát dữ liệu và audit log. Khi kiểm tra quyền màn hình, đăng nhập từng tài
+khoản và xác nhận menu/sidebar hiển thị đúng chức năng tương ứng với vai trò.
 
 ## 7. Luồng demo nhanh
 

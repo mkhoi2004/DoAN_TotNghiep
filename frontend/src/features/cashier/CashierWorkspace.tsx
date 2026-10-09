@@ -1,7 +1,7 @@
-import { ArrowDownRight, Check, ChevronRight, CircleDollarSign, Clock3, CreditCard, Plus, WalletCards } from "lucide-react";
+import { ArrowDownRight, Check, ChevronRight, CircleDollarSign, ClipboardList, Clock3, CreditCard, Plus, WalletCards } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api, money, type CurrentUser, type Visit } from "../../api";
-import { MiniValue, EmptyRow, FieldError } from "../../shared/components";
+import { MiniValue, FieldError } from "../../shared/components";
 
 export function CashierWorkspace({ user, onNotice }: { user: CurrentUser; onNotice: (message: string, type?: "success" | "error") => void }) {
   const [visits, setVisits] = useState<Visit[]>([]);
@@ -94,7 +94,7 @@ export function CashierWorkspace({ user, onNotice }: { user: CurrentUser; onNoti
     <div className="cashier-grid">
       <section className="panel cashier-main"><div className="panel-heading"><div><h3>Danh sách chờ thanh toán</h3><p>Các lượt khám đã chốt chuyên môn</p></div><span className="counter-pill">{awaitingPayment.length}</span></div><div className="payment-visit-list">
         {awaitingPayment.map((visit) => <button key={visit.VisitId} className={`payment-visit-row ${selectedVisitId === visit.VisitId ? "payment-visit-selected" : ""}`} onClick={() => { setSelectedVisitId(visit.VisitId); setAmount(String(visit.TotalAmount)); }}><span className="patient-avatar">{visit.PatientName.slice(0, 1)}</span><span className="payment-visit-info"><strong>{visit.PatientName}</strong><small>{visit.VisitCode} · {visit.PatientCode}</small></span><span className="payment-visit-amount">{money(visit.TotalAmount)}</span><ChevronRight size={17} /></button>)}
-        {awaitingPayment.length === 0 && <EmptyRow colSpan={1} title="Không có lượt chờ thanh toán" body="Khi bác sĩ chốt dịch vụ, lượt khám sẽ xuất hiện tại đây." />}
+        {awaitingPayment.length === 0 && <div className="empty-table"><span><ClipboardList size={21} /></span><strong>Không có lượt chờ thanh toán</strong><small>Khi bác sĩ chốt dịch vụ, lượt khám sẽ xuất hiện tại đây.</small></div>}
       </div></section>
       <section className="panel payment-panel"><div className="panel-heading"><div><h3>Ghi nhận thanh toán</h3><p>Tiền mặt cần gắn với ca đang mở</p></div><CreditCard size={20} className="subtle-icon" /></div>
         <form className="stacked-form" onSubmit={pay}>

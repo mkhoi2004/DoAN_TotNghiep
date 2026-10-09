@@ -72,6 +72,20 @@ export type Section =
   | "hr"
   | "assets";
 
+export class ApiError extends Error {
+  status: number;
+  code?: string;
+  matches?: unknown[];
+
+  constructor(message: string, status: number, code?: string, matches?: unknown[]) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+    this.matches = matches;
+  }
+}
+
 let accessToken: string | null = null;
 let onUnauthorized: (() => void) | null = null;
 
@@ -95,7 +109,10 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   }
   if (!response.ok) {
     const body = await response.json().catch(() => ({ error: "Không thể kết nối hệ thống." }));
-    throw new Error(body.error ?? `Lỗi ${response.status}`);
+    const message = typeof body?.error === "string" ? body.error : `Lỗi ${response.status}`;
+    const code = typeof body?.code === "string" ? body.code : undefined;
+    const matches = Array.isArray(body?.matches) ? body.matches : undefined;
+    throw new ApiError(message, response.status, code, matches);
   }
   if (response.status === 204) {
     return undefined as T;

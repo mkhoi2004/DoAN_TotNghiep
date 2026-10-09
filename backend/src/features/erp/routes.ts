@@ -102,7 +102,7 @@ router.get(
 router.post(
   "/patients",
   authenticate,
-  allowRoles("RECEPTIONIST"),
+  allowRoles("ADMIN", "RECEPTIONIST"),
   async (req, res, next) => {
     try {
       const input = patientSchema.parse(req.body);
@@ -292,7 +292,7 @@ router.get(
 router.post(
   "/visits",
   authenticate,
-  allowRoles("RECEPTIONIST"),
+  allowRoles("ADMIN", "RECEPTIONIST"),
   async (req, res, next) => {
     try {
       const input = visitSchema.parse(req.body);
