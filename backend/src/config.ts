@@ -1,5 +1,8 @@
-import "dotenv/config";
+import { config as loadEnv } from "dotenv";
+import { resolve } from "node:path";
 import { z } from "zod";
+
+loadEnv({ path: resolve(__dirname, "../.env") });
 
 const environmentSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -14,4 +17,18 @@ const environmentSchema = z.object({
   DB_TRUST_SERVER_CERTIFICATE: z.enum(["true", "false"]).default("false")
 });
 
-export const config = environmentSchema.parse(process.env);
+const parsedEnvironment = environmentSchema.safeParse(process.env);
+
+if (!parsedEnvironment.success) {
+  const issues = parsedEnvironment.error.issues
+    .map((issue) => `- ${issue.path.join(".")}: ${issue.message}`)
+    .join("\n");
+
+  throw new Error(
+    `Invalid backend environment configuration:\n${issues}\n` +
+      "Create and complete backend\\.env from backend\\.env.example. " +
+      "Generate JWT_SECRET, PII_ENCRYPTION_KEY, and PII_HASH_KEY as described in README.md."
+  );
+}
+
+export const config = parsedEnvironment.data;

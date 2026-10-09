@@ -88,6 +88,7 @@ cd ..\backend
 Tạo file riêng `backend\.env` từ mẫu:
 
 ```powershell
+Set-Location C:\Users\<TEN_NGUOI_DUNG>\Documents\GitHub\DoAN_TotNghiep\backend
 Copy-Item .env.example .env
 ```
 
@@ -117,6 +118,10 @@ DB_TRUST_SERVER_CERTIFICATE=false
 Điều chỉnh `DB_SERVER` theo SQL Server trên máy. `DB_TRUST_SERVER_CERTIFICATE`
 chỉ nên đặt `true` trong môi trường local cần chứng thư tự ký; production phải
 cấu hình chứng thư TLS đáng tin cậy.
+
+**Không chạy API trước khi đã tạo và điền `backend\.env`.** Nếu thiếu cấu hình,
+backend sẽ dừng và liệt kê các biến chưa hợp lệ; không dùng giá trị bí mật mặc
+định để bỏ qua lỗi.
 
 ### 4.3 Chạy script SQL đúng thứ tự
 
@@ -164,8 +169,12 @@ Terminal 1 — API:
 
 ```powershell
 cd C:\Users\<TEN_NGUOI_DUNG>\Documents\GitHub\DoAN_TotNghiep\backend
+Test-Path .env
 npm run dev
 ```
+
+`Test-Path .env` phải trả về `True`. Nếu trả về `False`, thực hiện bước 4.2
+trước khi chạy API.
 
 API mặc định chạy tại `http://localhost:3000`. Kiểm tra:
 
@@ -272,6 +281,7 @@ ra `backend\dist`. Chạy backend đã build bằng `npm start` sau khi đã c�
 ## 10. Tài liệu liên quan và lưu ý
 
 - [backend/README.md](./backend/README.md): chi tiết API và kỹ thuật backend.
+- [Repository.md](./Repository.md): cấu trúc source và bản đồ chức năng backend/frontend.
 - [Update.md](./Update.md): trạng thái module, phần đã có và phần còn thiếu.
 - [Quy_trinh_v13_NhaKhoa.md](./Quy_trinh_v13_NhaKhoa.md): đặc tả nghiệp vụ tham khảo.
 

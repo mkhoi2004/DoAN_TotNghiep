@@ -4,11 +4,11 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
 import sql from "mssql/msnodesqlv8";
-import { config } from "../config";
-import { getDatabase } from "../db";
-import { allowRoles, authenticate, type Role } from "../middleware/auth";
-import { passwordPolicySchema } from "../security/password-policy";
-import { recordAudit } from "../services/audit";
+import { config } from "../../config";
+import { getDatabase } from "../../db";
+import { allowRoles, authenticate, type Role } from "../../middleware/auth";
+import { passwordPolicySchema } from "../../security/password-policy";
+import { recordAudit } from "../../services/audit";
 
 const router = Router();
 

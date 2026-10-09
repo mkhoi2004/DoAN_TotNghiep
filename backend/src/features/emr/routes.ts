@@ -2,10 +2,10 @@ import { createHash, randomUUID } from "node:crypto";
 import { Router } from "express";
 import sql from "mssql/msnodesqlv8";
 import { z } from "zod";
-import { getDatabase } from "../db";
-import { HttpError } from "../middleware/errors";
-import { allowRoles, authenticate, type AuthenticatedRequest } from "../middleware/auth";
-import { protectSensitiveText, revealSensitiveText } from "../security/pii";
+import { getDatabase } from "../../db";
+import { HttpError } from "../../middleware/errors";
+import { allowRoles, authenticate, type AuthenticatedRequest } from "../../middleware/auth";
+import { protectSensitiveText, revealSensitiveText } from "../../security/pii";
 
 const router = Router();
 

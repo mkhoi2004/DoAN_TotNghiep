@@ -4,12 +4,12 @@ import helmet from "helmet";
 import { config } from "./config";
 import { closeDatabase, connectDatabase } from "./db";
 import { errorHandler } from "./middleware/errors";
-import authRoutes from "./routes/auth";
-import cashierRoutes from "./routes/cashier";
-import clinicalRoutes from "./routes/clinical";
-import erpRoutes from "./routes/erp";
-import operationsRoutes from "./routes/operations";
-import reservationRoutes from "./routes/reservations";
+import authRoutes from "./features/auth/routes";
+import cashierRoutes from "./features/cashier/routes";
+import clinicalRoutes from "./features/emr/routes";
+import erpRoutes from "./features/erp/routes";
+import operationsRoutes from "./features/operations/routes";
+import reservationRoutes from "./features/inventory/reservations";
 
 async function start(): Promise<void> {
   await connectDatabase();

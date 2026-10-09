@@ -19,8 +19,8 @@
     "express-rate-limit": "^8.0.1",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
-    "mssql": "^11.0.1",
     "msnodesqlv8": "^4.2.1",
+    "mssql": "^4.2.0",
     "zod": "^4.0.5"
   },
   "devDependencies": {

@@ -2,19 +2,19 @@ import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import sql from "mssql/msnodesqlv8";
 import { z } from "zod";
-import { getDatabase } from "../db";
-import { allocateFifo, assertBalancedJournal, canTransitionVisit } from "../domain/invariants";
+import { getDatabase } from "../../db";
+import { allocateFifo, assertBalancedJournal, canTransitionVisit } from "../../domain/invariants";
 import {
   allowRoles,
   authenticate,
   type AuthenticatedRequest,
   type Role
-} from "../middleware/auth";
+} from "../../middleware/auth";
 import {
   protectNationalId,
   protectSensitiveText,
   revealSensitiveText
-} from "../security/pii";
+} from "../../security/pii";
 
 const router = Router();
 
