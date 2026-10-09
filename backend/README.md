@@ -101,7 +101,8 @@ during local development.
 - `/api/clinical/*`: clinical service catalog, role/assignment-protected EMR,
   encrypted clinical notes and electronic-consent signatures, consent
   revocation, treatment-service pricing snapshots, and consent-gated visit
-  settlement.
+  settlement. MySign/Viettel-CA signing is deferred; internal clinical
+  settlement does not represent a legally valid digital signature.
 - `/api/cashier/*` and `POST /api/visits/:visitId/payments`: cashier shifts,
   idempotent payments, exact-balance collection, discrepancy review and
   separation-of-duties reconciliation. Every closed shift requires approval by
@@ -120,9 +121,10 @@ during local development.
 - `GET /api/inventory`, `POST /api/inventory/receipts`,
   `POST /api/inventory/issues`: lot tracking, expiry checks, transactional
   FIFO split-lot issue, and stock movement records.
-- `POST /api/accounting/journals` and
+- `GET/POST /api/accounting/journals` and
   `POST /api/accounting/journals/:journalId/approve`: balanced journal entries
-  with separation-of-duties approval.
+  with separation-of-duties approval by the chief accountant. MySign/
+  Viettel-CA signing is deferred.
 
 All API routes except `/health` and login require a short-lived bearer JWT.
 The initial implementation intentionally has no default users or passwords;

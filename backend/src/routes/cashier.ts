@@ -382,7 +382,7 @@ router.post(
           `);
         const paidTotal = Number(priorPayments.recordset[0].Paid) + input.amount;
         if (paidTotal >= Number(visit.TotalAmount)) {
-          await new sql.Request(transaction)
+          const completed = await new sql.Request(transaction)
             .input("visitId", sql.UniqueIdentifier, visitId)
             .query(`
               UPDATE dbo.Visits SET Status = 4, UpdatedAt = SYSUTCDATETIME()
@@ -390,6 +390,17 @@ router.post(
               UPDATE dbo.VisitServiceItems SET Status = N'COMPLETED', UpdatedAt = SYSUTCDATETIME()
               WHERE VisitId = @visitId AND Status IN (N'PENDING', N'RESERVED', N'IN_PROGRESS') AND IsDeleted = 0;
             `);
+          if (completed.rowsAffected[0] !== 1) {
+            throw new Error("Visit state changed while completing payment");
+          }
+          await audit(
+            new sql.Request(transaction),
+            req,
+            "VISIT_STATUS_CHANGED",
+            "Visit",
+            visitId,
+            { from: 3, to: 4, reason: "PAYMENT_COMPLETED" }
+          );
         }
         await audit(new sql.Request(transaction), req, "VISIT_PAYMENT_RECORDED", "PaymentTransaction", result.recordset[0].PaymentTransactionId, {
           visitId,

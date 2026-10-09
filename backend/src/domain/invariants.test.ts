@@ -10,7 +10,12 @@ import {
 describe("visit state transitions", () => {
   it("allows only workflow transitions", () => {
     expect(canTransitionVisit(0, 1)).toBe(true);
-    expect(canTransitionVisit(2, 4)).toBe(true);
+    expect(canTransitionVisit(1, 2)).toBe(true);
+    expect(canTransitionVisit(2, 3)).toBe(true);
+    expect(canTransitionVisit(3, 4)).toBe(true);
+    expect(canTransitionVisit(2, 1)).toBe(true);
+    expect(canTransitionVisit(3, 2)).toBe(true);
+    expect(canTransitionVisit(2, 4)).toBe(false);
     expect(canTransitionVisit(4, 1)).toBe(false);
     expect(canTransitionVisit(0, 3)).toBe(false);
   });

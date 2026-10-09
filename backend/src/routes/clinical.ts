@@ -248,9 +248,9 @@ router.put(
       await transaction.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
       try {
         const visit = await assertVisitAccess(new sql.Request(transaction), req, visitId);
-        if (visit.Status !== 1 && visit.Status !== 2) {
+        if (visit.Status !== 1) {
           await transaction.rollback();
-          res.status(409).json({ error: "EMR is frozen outside an active clinical visit" });
+          res.status(409).json({ error: "EMR is locked after clinical approval; cancel the approval before editing" });
           return;
         }
         const saved = await new sql.Request(transaction)
@@ -452,7 +452,7 @@ router.post(
           FROM dbo.TreatmentConsents consent
           JOIN dbo.Visits visit ON visit.VisitId = consent.VisitId
           WHERE consent.ConsentId = @consentId AND consent.RevokedAt IS NULL
-            AND consent.IsDeleted = 0 AND visit.IsDeleted = 0
+            AND consent.IsDeleted = 0 AND visit.IsDeleted = 0 AND visit.Status = 1
             AND (@actorId IS NOT NULL)
             AND (visit.DoctorId = @actorId OR EXISTS (
               SELECT 1 FROM dbo.Users WHERE UserId = @actorId AND Role = N'ADMIN'
@@ -484,9 +484,9 @@ router.post(
       await transaction.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
       try {
         const visit = await assertVisitAccess(new sql.Request(transaction), req, visitId);
-        if (visit.Status !== 2) {
+        if (visit.Status !== 1 && visit.Status !== 2) {
           await transaction.rollback();
-          res.status(409).json({ error: "Visit must be clinically ready before settlement" });
+          res.status(409).json({ error: "Visit must be active or clinically ready before settlement" });
           return;
         }
         const emr = await new sql.Request(transaction)
@@ -533,15 +533,30 @@ router.post(
           return;
         }
         const status = totalAmount > 0 ? 3 : 4;
-        await new sql.Request(transaction)
-          .input("visitId", sql.UniqueIdentifier, visitId)
-          .input("totalAmount", sql.Decimal(19, 2), totalAmount)
-          .input("status", sql.SmallInt, status)
-          .query(`
-            UPDATE dbo.Visits
-            SET TotalAmount = @totalAmount, Status = @status, UpdatedAt = SYSUTCDATETIME()
-            WHERE VisitId = @visitId AND Status = 2 AND IsDeleted = 0
-          `);
+        const updateVisit = async (expectedStatus: number, nextStatus: number): Promise<void> => {
+          const updated = await new sql.Request(transaction)
+            .input("visitId", sql.UniqueIdentifier, visitId)
+            .input("totalAmount", sql.Decimal(19, 2), totalAmount)
+            .input("expectedStatus", sql.SmallInt, expectedStatus)
+            .input("status", sql.SmallInt, nextStatus)
+            .query(`
+              UPDATE dbo.Visits
+              SET TotalAmount = @totalAmount, Status = @status, UpdatedAt = SYSUTCDATETIME()
+              WHERE VisitId = @visitId AND Status = @expectedStatus AND IsDeleted = 0
+            `);
+          if (updated.rowsAffected[0] !== 1) {
+            throw new HttpError(409, "Visit state changed during settlement; retry");
+          }
+          await audit(new sql.Request(transaction), req, "VISIT_STATUS_CHANGED", "Visit", visitId, {
+            from: expectedStatus,
+            to: nextStatus,
+            totalAmount
+          });
+        };
+        const readyStatus = visit.Status === 1 ? 2 : visit.Status;
+        if (visit.Status === 1) await updateVisit(1, 2);
+        await updateVisit(readyStatus, 3);
+        if (totalAmount === 0) await updateVisit(3, 4);
         await audit(new sql.Request(transaction), req, "VISIT_SETTLED", "Visit", visitId, { totalAmount, status });
         await transaction.commit();
         res.json({ status, totalAmount, requiresConsent: false });

@@ -401,8 +401,7 @@ router.patch(
           (visit.Status === 0 && nextStatus === 1 && (isClinicalActor || actorRole === "ASSISTANT")) ||
           (visit.Status === 1 && nextStatus === 2 && isClinicalActor) ||
           (visit.Status === 2 && nextStatus === 1 && isClinicalActor) ||
-          (visit.Status === 2 && nextStatus === 4 && isClinicalActor &&
-            visit.VisitType === "FOLLOW_UP_FREE" && Number(visit.TotalAmount) === 0) ||
+          (visit.Status === 3 && nextStatus === 2 && isClinicalActor) ||
           (visit.Status === 3 && nextStatus === 4 && isReceptionAction) ||
           (visit.Status === 0 && nextStatus === -1 && isReceptionAction) ||
           (visit.Status === 1 && nextStatus === -1 && isClinicalActor);
@@ -410,6 +409,23 @@ router.patch(
           await transaction.rollback();
           res.status(409).json({ error: "Visit state transition is not permitted" });
           return;
+        }
+
+        if (visit.Status === 3 && nextStatus === 2) {
+          const paid = await new sql.Request(transaction)
+            .input("visitId", sql.UniqueIdentifier, visitId)
+            .query(`
+              SELECT COALESCE(SUM(Amount), 0) AS Collected
+              FROM dbo.PaymentTransactions
+              WHERE VisitId = @visitId AND IsDeleted = 0
+            `);
+          if (Number(paid.recordset[0].Collected) > 0) {
+            await transaction.rollback();
+            res.status(409).json({
+              error: "A visit with recorded payments cannot be reopened; refund or reverse payments first"
+            });
+            return;
+          }
         }
 
         if (visit.Status === 3 && nextStatus === 4) {
@@ -792,6 +808,35 @@ const journalSchema = z.object({
     credit: z.number().nonnegative()
   })).min(2).max(100)
 });
+
+router.get(
+  "/accounting/journals",
+  authenticate,
+  allowRoles("ADMIN", "ACCOUNTANT", "CHIEF_ACCOUNTANT"),
+  async (_req, res, next) => {
+    try {
+      const result = await getDatabase().request().query(`
+        SELECT TOP (100)
+          entry.JournalEntryId, entry.EntryCode, entry.Description, entry.Status,
+          entry.CreatedAt, creator.Username AS CreatedByUsername,
+          COALESCE(totals.TotalDebit, 0) AS TotalDebit,
+          COALESCE(totals.TotalCredit, 0) AS TotalCredit
+        FROM dbo.JournalEntries entry
+        JOIN dbo.Users creator ON creator.UserId = entry.CreatedBy
+        OUTER APPLY (
+          SELECT SUM(line.Debit) AS TotalDebit, SUM(line.Credit) AS TotalCredit
+          FROM dbo.JournalLines line
+          WHERE line.JournalEntryId = entry.JournalEntryId AND line.IsDeleted = 0
+        ) totals
+        WHERE entry.IsDeleted = 0
+        ORDER BY entry.CreatedAt DESC
+      `);
+      res.json(result.recordset);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 router.post(
   "/accounting/journals",

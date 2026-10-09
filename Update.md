@@ -132,7 +132,10 @@ Còn thiếu so với v13:
 - Loại: `NEW` / `FOLLOW_UP_PAID` / `FOLLOW_UP_FREE`.
 - Gán bác sĩ; trạng thái `-1, 0, 1, 2, 3, 4` với ma trận chuyển `canTransitionVisit`.
 - Hủy khi `0` hoặc `1`; UI hủy lượt.
-- Chốt ca 0đ (`FOLLOW_UP_FREE`, không gắn dịch vụ thu phí) → thẳng `2 → 4`.
+- Duyệt chuyên môn `1 → 2` khóa bệnh án; chốt tính phí chuyển tuần tự `2 → 3`; thu đủ chuyển `3 → 4`.
+- Hủy chốt `2 → 1` để mở sửa; hủy chờ thanh toán `3 → 2` chỉ khi chưa phát sinh thanh toán. Không cho lùi sau hoàn tất `4`.
+- Ca 0đ vẫn đi tuần tự `2 → 3 → 4` trong cùng transaction, không tạo giao dịch thu 0đ.
+- Hiện chưa có chức năng/API in phiếu hoặc hóa đơn; khi bổ sung phải chặn nếu `Status < 2`.
 
 Còn thiếu:
 
@@ -140,7 +143,7 @@ Còn thiếu:
 - Đối tượng thanh toán (tự trả / BHTM / BHYT).
 - Dịch vụ đăng ký ban đầu tại quầy (không hạch toán).
 - Liên kết `Treatment_Phase_ID` / STN gốc cho tái khám.
-- Cổng ký số MySign khi chốt ca thuộc danh mục bắt buộc (chi tiết mục **4.14**).
+- Chữ ký số MySign khi chốt ca đang tạm hoãn; luồng hiện tại chỉ chốt nghiệp vụ (mục **4.14**).
 
 ---
 
@@ -150,6 +153,7 @@ Còn thiếu:
 
 - Danh mục dịch vụ lâm sàng (`GET/POST /clinical/services`).
 - EMR: sinh hiệu, sơ đồ răng FDI (chọn răng), chẩn đoán, diễn biến; ghi chú mã hóa; bác sĩ chỉ sửa ca được gán.
+- Dữ liệu EMR chỉ sửa ở `Status = 1`; status từ `2` trở lên bị khóa cho đến khi hủy chốt lùi về `1`.
 - Thêm chỉ định: snapshot giá vào `VisitServiceItems`.
 - Consent điện tử: chữ ký PNG, mã hóa, SHA-256, chỉ dịch vụ xâm lấn đã chỉ định, khi ca đang `Status = 1`.
 - Thu hồi consent (`revoke` + lý do).
@@ -163,7 +167,7 @@ Còn thiếu (tabs A–I v13):
 - Addendum sau khi khóa bệnh án.
 - Cờ banner dị ứng nhấp nháy, trạng thái consent trên header.
 - UI thu hồi consent (API revoke đã có).
-- Rollback `2 → 1` khi consent REVOKED trước khi thủ thuật xong.
+- Chỉ cho thu hồi consent khi lượt khám đang mở (`Status = 1`); nếu đã chốt, phải hủy chốt về `1` trước.
 - **Không nhầm với MySign:** chữ ký PNG trên tablet là đồng thuận **người bệnh**; MySign là chữ ký số **Bác sĩ / Kế toán trưởng** (mục 4.14).
 
 ---
@@ -245,6 +249,7 @@ Còn thiếu: kích hoạt ca bảo hành miễn phí (cùng cơ chế `2 → 4`
 
 - Chart of accounts (111, 112, 131, 152, 156, 331, 511, 632, 641, 642, 811 + bản 004).
 - Tạo bút toán cân Nợ=Có (≥ 2 dòng); SoD: người lập không tự duyệt; UI nhập `linesJson`.
+- Danh sách bút toán; Kế toán trưởng duyệt bút toán do người khác lập.
 
 Còn thiếu:
 
@@ -252,7 +257,7 @@ Còn thiếu:
 - POSTED / ghi sổ / báo cáo tài chính.
 - VAT theo chính sách phòng khám (không suy từ một khoản thu).
 - UI dòng bút toán thân thiện (không JSON).
-- Kế toán trưởng ký MySign trước khi chứng từ sang `DA_HACH_TOAN` / `POSTED` (mục 4.14).
+- Ghi sổ `POSTED` và báo cáo tài chính.
 
 ---
 
@@ -269,6 +274,14 @@ Còn thiếu: chấm công, bảng lương, hoa hồng cash-basis + clawback; kh
 Đã có: `AuditLogs` cho login, tạo user, đọc/tạo BN/visit, EMR/consent, thu, kho, module operations; session context khi xóa.
 
 Còn thiếu: break-glass 60 phút; cold storage 10–15 năm; DR tự động; e-invoice; 2FA.
+
+---
+
+### 4.14 Ký duyệt điện tử — **PLANNED (tạm hoãn)**
+
+Tạm hoãn tích hợp MySign/Viettel-CA theo yêu cầu. Không tạo giao dịch ký demo, không yêu cầu ký số khi chốt bệnh án hoặc duyệt bút toán. Hiện sử dụng luồng duyệt nghiệp vụ hiện có: bác sĩ chốt lượt khám; Kế toán trưởng duyệt bút toán cân, do người khác lập (SoD).
+
+Còn thiếu: tích hợp Viettel-CA thật, chữ ký/timestamp kiểm chứng được, ký PDF/A và test tích hợp với nhà cung cấp. Không xem bước duyệt nội bộ là chữ ký số pháp lý.
 
 ---
 
@@ -290,7 +303,7 @@ Mọi route trừ `/health` và login cần JWT.
 | POST | `/api/clinical/visits/:visitId/services` | |
 | POST | `/api/clinical/consents` | |
 | POST | `/api/clinical/consents/:consentId/revoke` | |
-| POST | `/api/clinical/visits/:visitId/settle` | |
+| POST | `/api/clinical/visits/:visitId/settle` | Chốt lượt khám sau kiểm tra EMR/đồng thuận |
 | GET | `/api/cashier/shifts/current` | |
 | GET | `/api/cashier/shifts/pending` | |
 | GET | `/api/cashier/payments` | |
@@ -314,7 +327,7 @@ Mọi route trừ `/health` và login cần JWT.
 | GET/POST | `/api/hr/employees` | |
 | GET/POST | `/api/assets` | |
 | GET/POST | `/api/accounting/journals` | |
-| POST | `/api/accounting/journals/:id/approve` | SoD |
+| POST | `/api/accounting/journals/:id/approve` | SoD + kiểm tra bút toán cân |
 
 ---
 
@@ -354,6 +367,14 @@ Khi thêm module: schema SQL (kèm `*Deleted` + trigger) → API + RBAC + audit 
 ## 8. Changelog (ghi tiếp mỗi lần update)
 
 Quy tắc: mỗi lần xong một chức năng, thêm một mục **mới nhất ở trên**. Đánh dấu lại bảng mục 4.
+
+### 2026-10-09 — Tạm hoãn Viettel-CA, giữ luồng duyệt nội bộ
+
+- Gỡ ký số demo và không yêu cầu Viettel-CA khi chốt bệnh án hoặc duyệt bút toán.
+- Giữ luồng chốt lượt khám hiện có và duyệt bút toán của Kế toán trưởng với kiểm tra SoD/cân đối.
+- Tích hợp Viettel-CA được ghi nhận là phần chưa triển khai; không dùng duyệt nội bộ thay cho chữ ký số pháp lý.
+
+---
 
 ### 2026-10-09 — Rà soát baseline & tạo file này
 

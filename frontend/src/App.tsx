@@ -640,12 +640,6 @@ function EmrWorkspace({ user, onNotice }: { user: CurrentUser; onNotice: (messag
     if (!visitId || !activeVisit) return;
     setBusy(true);
     try {
-      if (activeVisit.Status === 1) {
-        await api(`/visits/${visitId}/status`, {
-          method: "PATCH",
-          body: JSON.stringify({ status: 2 })
-        });
-      }
       const result = await api<{ status: number; requiresConsent: boolean }>(`/clinical/visits/${visitId}/settle`, { method: "POST", body: JSON.stringify({}) });
       await load();
       onNotice(result.status === 4 ? "Đã chốt tái khám miễn phí." : "Đã chốt chuyên môn, chuyển hồ sơ sang chờ thanh toán.");
@@ -656,13 +650,30 @@ function EmrWorkspace({ user, onNotice }: { user: CurrentUser; onNotice: (messag
     } finally { setBusy(false); }
   }
 
+  async function cancelApproval() {
+    if (!visitId || !activeVisit || ![2, 3].includes(activeVisit.Status)) return;
+    setBusy(true);
+    try {
+      await api(`/visits/${visitId}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: activeVisit.Status - 1 })
+      });
+      await load();
+      onNotice(activeVisit.Status === 2
+        ? "Đã hủy duyệt; bệnh án được mở lại để chỉnh sửa."
+        : "Đã hủy bước chờ thanh toán; lượt khám trở về trạng thái đã chốt chuyên môn.");
+    } catch (error) {
+      onNotice(error instanceof Error ? error.message : "Không thể hủy bước duyệt.", "error");
+    } finally { setBusy(false); }
+  }
+
   const isReadOnly = activeVisit ? [2, 3, 4, -1].includes(activeVisit.Status) : false;
   const canEdit = ["DOCTOR", "ADMIN"].includes(user.role);
   return (
     <div className="module-content emr-layout">
       <div className="emr-patient-select panel">
         <label><span className="form-label-upper">LƯỢT KHÁM ĐANG MỞ</span><select value={visitId} onChange={(event) => setVisitId(event.target.value)}><option value="">Chọn bệnh nhân / lượt khám</option>{visits.filter((visit) => [0, 1, 2, 3].includes(visit.Status)).map((visit) => <option key={visit.VisitId} value={visit.VisitId}>{visit.PatientName} · {visit.VisitCode}</option>)}</select></label>
-        {activeVisit && <div className="emr-patient-summary"><span className="patient-avatar patient-avatar-lg">{activeVisit.PatientName.slice(0, 1)}</span><span><strong>{activeVisit.PatientName}</strong><small>{activeVisit.PatientCode} · {activeVisit.VisitCode}</small></span><VisitStatus status={activeVisit.Status} /><button className="secondary-button" onClick={() => setConsentOpen(true)}><ShieldCheck size={15} /> Đồng thuận</button></div>}
+        {activeVisit && <div className="emr-patient-summary"><span className="patient-avatar patient-avatar-lg">{activeVisit.PatientName.slice(0, 1)}</span><span><strong>{activeVisit.PatientName}</strong><small>{activeVisit.PatientCode} · {activeVisit.VisitCode}</small></span><VisitStatus status={activeVisit.Status} />{canEdit && [2, 3].includes(activeVisit.Status) && <button className="secondary-button" disabled={busy} onClick={() => void cancelApproval()}>{activeVisit.Status === 2 ? "Hủy chốt · Mở sửa" : "Hủy chờ thanh toán"}</button>}<button className="secondary-button" onClick={() => setConsentOpen(true)}><ShieldCheck size={15} /> Đồng thuận</button></div>}
       </div>
       {!activeVisit ? <div className="empty-state panel"><span><FileHeart size={24} /></span><h3>Chọn lượt khám để mở bệnh án</h3><p>Thông tin bệnh nhân và các chỉ định sẽ hiển thị tại đây.</p></div> : <>
         <div className="emr-tabs">{["Tổng quan", "Sinh hiệu", "Sơ đồ răng", "Khám lâm sàng", "Điều trị"].map((label) => <button key={label} onClick={() => setTab(label)} className={tab === label ? "emr-tab-active" : ""}>{label}</button>)}</div>
